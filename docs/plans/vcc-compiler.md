@@ -85,5 +85,8 @@ per `packages/plugin/src/effect/PLAN.md:421` in the v2.3.2 checkout;
 the Promise API is its async/await-equivalent wrapper), so no
 convert-to-Effect task ever arises. Reference module →
 `packages/core/src/context/` (or the consumer's chosen home) per REUSE.md.
-That move is a new task. The throwaway probe stays as completed evidence,
+That move is a new task. The adapter must supply full config:
+`search`/`recall` read `maxSearchHits`/`maxRecallTokens` and the text
+budgets with no defaults (fail-loud on missing config, upstream-verbatim).
+The throwaway probe stays as completed evidence,
 not the foundation: its PASS verdict proved the seam, not the scaffolding.
