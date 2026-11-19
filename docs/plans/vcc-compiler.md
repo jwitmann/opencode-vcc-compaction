@@ -35,12 +35,15 @@ in each ported file).
 - `compiler/recall.mjs` — PORT: `parseSeqSpec` (`12`, `3-7`, `seq 12`,
   `seqs 12-34`), log expansion, `recallSession` with `maxRecallTokens`
   (16000) + provenance markers; checkpoint-ordinal elision lines.
+- `compiler/session-compat.mjs` — PORT (implied dependency, not a stage):
+  `sessionEventAt`/`sessionEvents`, accessor pair with legacy `events`-array
+  fallback, duck-typed so the adapter supplies the session-shaped value.
 - `compiler/search.mjs` — PORT: `compileSearchPattern`,
   `searchSession` with `maxSearchHits` (50), `MAX_LINES_PER_HIT` (10).
 - DROP here (DSH-harness, not engine): `region.js` (session-state
   machinery → host `compact()` + hook, at handoff), `tool.js` cordis
-  wiring, `command`/`preset-check`/`shadow-check`/`session-compat`,
-  `index.js` engine assembly. `elideCheckpointInjectedBodies` is carried
+  wiring, `command`/`preset-check`/`shadow-check`, `index.js` engine
+  assembly. `elideCheckpointInjectedBodies` is carried
   verbatim inside `compile.mjs` (deleting it would fork `compileNodes`)
   but never enabled — the OpenCode preamble is per-request transient
   (REUSE.md reject); see the `compile.mjs` header.
