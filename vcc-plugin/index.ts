@@ -1,7 +1,14 @@
 import { Plugin } from "@opencode/plugin/effect"
 import { Effect } from "effect"
 import { buildConfig, compileCompaction } from "./adapter.mjs"
-import { SNAPSHOT_KEY_PREFIX, buildSnapshot, snapshotNeedsWrite } from "./snapshot.mjs"
+import {
+  SNAPSHOT_KEY_PREFIX,
+  buildSnapshot,
+  parseRecallArgs,
+  recallFromSnapshot,
+  resolveRecallSelections,
+  snapshotNeedsWrite,
+} from "./snapshot.mjs"
 
 // opencode-vcc-compaction: deterministic LLM-free compaction summaries.
 //
@@ -97,5 +104,74 @@ export default Plugin.define({
           }),
       ),
     )
+
+    try {
+      yield* ctx.command.transform((editor) => {
+        editor.add({
+          name: "vcc-recall",
+          description: "Restore exact original content from this session by (seq N), result, or checkpoint reference.",
+          execute: (input) =>
+            Effect.catchAllCause(
+              Effect.flatMap(
+                Effect.sync(() => parseRecallArgs((input.prompt as { text?: unknown })?.text ?? "")),
+                (parsed) => {
+                  if ("error" in parsed) {
+                    return ctx.session.prompt({
+                      sessionID: input.sessionID,
+                      text: `**/vcc-recall** — ${parsed.error}`,
+                      delivery: input.delivery,
+                    })
+                  }
+                  return Effect.flatMap(
+                    Effect.catchAll(
+                      ctx.storage.get(`${SNAPSHOT_KEY_PREFIX}${input.sessionID}`),
+                      (error) =>
+                        Effect.sync(() => {
+                          console.warn("[opencode-vcc-compaction] vcc-recall: snapshot read failed:", error)
+                          return { __vccReadFailed: true as const }
+                        }),
+                    ),
+                    (stored) => {
+                      if (stored !== undefined && stored !== null && (stored as { __vccReadFailed?: unknown }).__vccReadFailed === true) {
+                        return ctx.session.prompt({
+                          sessionID: input.sessionID,
+                          text: "**/vcc-recall** — snapshot read failed, try again in a moment",
+                          delivery: input.delivery,
+                        })
+                      }
+                      const messages = (stored as { messages?: unknown } | undefined)?.messages
+                      if (!Array.isArray(messages) || messages.length === 0) {
+                        console.log("[opencode-vcc-compaction] vcc-recall: no snapshot yet for this session")
+                        return Effect.void
+                      }
+                      const resolved = resolveRecallSelections(messages as never, parsed.type, parsed.id)
+                      if (resolved.errors.length > 0 || resolved.selections.length === 0) {
+                        return ctx.session.prompt({
+                          sessionID: input.sessionID,
+                          text: `**/vcc-recall** — ${resolved.errors.join("; ") || "nothing to recall"}`,
+                          delivery: input.delivery,
+                        })
+                      }
+                      const recalled = recallFromSnapshot(messages as never, resolved.selections)
+                      const label = `**/vcc-recall ${parsed.type} ${parsed.id}** (${recalled.seqs.length} event(s), ${recalled.tokens} tokens${recalled.missing > 0 ? `, ${recalled.missing} missing` : ""}${recalled.truncated ? ", budget-truncated" : ""})`
+                      return ctx.session.prompt({
+                        sessionID: input.sessionID,
+                        text: `${label}\n\n${recalled.text}`,
+                        delivery: input.delivery,
+                      })
+                    },
+                  )
+                },
+              ),
+              (cause) =>
+                Effect.sync(() => {
+                  console.warn("[opencode-vcc-compaction] vcc-recall failed:", cause)
+                }),
+            ),
+        })
+      })
+    } catch (error) {
+      console.warn("[opencode-vcc-compaction] command API unavailable; /vcc-recall not registered:", error)
+    }
   }),
 })

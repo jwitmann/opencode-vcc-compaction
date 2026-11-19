@@ -23,6 +23,7 @@ import {
   SNAPSHOT_VERSION,
   buildSnapshot,
   makeSnapshotSession,
+  parseRecallArgs,
   recallFromSnapshot,
   searchSnapshot,
   snapshotMessageToRecall,
@@ -228,6 +229,28 @@ check(
 );
 check("snapshot search defaults on empty config", searchSnapshot(snap.messages, "login").totalMatches >= 1, true);
 check("snapshot recall defaults on undefined budget", recallFromSnapshot(snap.messages, [{ start: 1, end: 1 }], undefined).recalled, 1);
+check("recall args seq range", parseRecallArgs("/vcc-recall 3-7"), { type: "seq", id: "3-7" });
+check("recall args bare seq", parseRecallArgs("seq 12"), { type: "seq", id: "seq 12" });
+check("recall args result", parseRecallArgs("/vcc-recall result 3"), { type: "result", id: "3" });
+check("recall args checkpoint", parseRecallArgs("checkpoint 1"), { type: "checkpoint", id: "1" });
+check("recall args empty is usage", "error" in parseRecallArgs("/vcc-recall"), true);
+check("recall args result needs id", "error" in parseRecallArgs("/vcc-recall result"), true);
+check("recall args checkpoint needs id", "error" in parseRecallArgs("/vcc-recall checkpoint"), true);
+check("snapshot search never surfaces seq 0", searchSnapshot(snap.messages, "e", { maxSearchHits: 50, maxRecallTokens: 16000 }).hits.every((hit) => hit.seq !== 0), true);
+check(
+  "snapshot recall tolerates nullish stored parts",
+  snapshotMessageToRecall({ role: "user", content: [null, { type: "text", text: "hi" }, { noType: true }] }).content,
+  [{ type: "text", text: "hi" }],
+);
+const recallCmd = (() => {
+  const parsed = parseRecallArgs("/vcc-recall 2-3");
+  if ("error" in parsed) return null;
+  const cmdSession = makeSnapshotSession(snap.messages);
+  const resolved = resolveRecallReference(cmdSession, parsed.type, parsed.id);
+  if (resolved.errors.length > 0) return null;
+  return recallFromSnapshot(snap.messages, resolved.selections);
+})();
+check("recall command flow restores text", recallCmd !== null && recallCmd.text.includes("[tool-call read]"), true);
 
 if (failures > 0) {
   console.log(`selftest FAILED: ${failures} case(s)`);

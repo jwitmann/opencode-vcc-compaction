@@ -45,6 +45,7 @@ import { mediaLabel, projectResultValue, stringifyToolInput, toNode } from "./ad
 import {
   DEFAULT_MAX_RECALL_TOKENS,
   recallSession,
+  resolveRecallReference,
 } from "./engine/recall.mjs";
 import {
   DEFAULT_MAX_SEARCH_HITS,
@@ -178,6 +179,42 @@ export function buildSnapshot(messages) {
 }
 
 /**
+ * Parse a `/vcc-recall` invocation into a typed recall reference.
+ * Strips a leading `/vcc-recall` command prefix when present.
+ * @param text - raw invocation prompt text.
+ * @returns `{ type, id }`, or `{ error }` with usage text.
+ */
+export function parseRecallArgs(text) {
+  const raw = String(text ?? "").replace(/^\s*\/vcc-recall\b/iu, "").trim();
+  if (raw.length === 0) return { error: "usage: /vcc-recall <seq selection> | result <ref> | checkpoint <ref> (e.g. `/vcc-recall 3-7`, `/vcc-recall result 3`, `/vcc-recall checkpoint 1`)" };
+  const lowered = raw.toLowerCase();
+  if (lowered === "result" || lowered.startsWith("result ")) {
+    const id = raw.slice(6).trim();
+    if (id.length === 0) return { error: "usage: /vcc-recall result <seq> (e.g. `/vcc-recall result 3`)" };
+    return { type: "result", id };
+  }
+  if (lowered === "checkpoint" || lowered.startsWith("checkpoint ")) {
+    const id = raw.slice(10).trim();
+    if (id.length === 0) return { error: "usage: /vcc-recall checkpoint <ordinal|seq> (e.g. `/vcc-recall checkpoint 1`)" };
+    return { type: "checkpoint", id };
+  }
+  return { type: "seq", id: raw };
+}
+
+/**
+ * Resolve a parsed recall reference against snapshot messages.
+ * Thin wrapper over engine `resolveRecallReference` (via
+ * `makeSnapshotSession`) so command wiring imports only `snapshot.mjs`.
+ * @param cleanedMessages - snapshot `messages`.
+ * @param type - reference type: `seq`, `result`, or `checkpoint`.
+ * @param id - type-dependent reference text.
+ * @returns `{ selections, errors }`.
+ */
+export function resolveRecallSelections(cleanedMessages, type, id) {
+  return resolveRecallReference(makeSnapshotSession(cleanedMessages), type, id);
+}
+
+/**
  * Decide whether a snapshot write is needed (growth guard).
  * @param previous - `{ version, count, lastID }` from the last write (or undefined).
  * @param next - candidate snapshot meta.
@@ -245,6 +282,7 @@ export function snapshotMessageToRecall(cleaned) {
   }
   const blocks = [];
   for (const part of content) {
+    if (part === null || part === undefined || typeof part.type !== "string") continue;
     const block = recallBlock(part);
     if (block !== null) blocks.push(block);
   }
@@ -366,5 +404,26 @@ export function searchSnapshot(cleanedMessages, patternSource, config = {}) {
       return inner.deriveEventMessage(event);
     },
   };
-  return searchSession(paddedSession, patternSource, { maxSearchHits, maxRecallTokens });
+  const out = searchSession(paddedSession, patternSource, { maxSearchHits, maxRecallTokens });
+  // The seq-0 pad satisfies the verbatim positional scan but must never
+  // surface: seq 0 is unrecallable (`parseSeqSpec` rejects it), so drop any
+  // phantom hit and rebuild the summary around the live hits.
+  const hits = out.hits.filter((hit) => hit.seq !== 0);
+  const dropped = out.hits.length - hits.length;
+  const totalMatches = out.totalMatches - dropped;
+  const omitted = Math.max(0, out.omitted - dropped);
+  const lines = [
+    `[search "${out.pattern}": ${totalMatches} matching event(s)]`,
+    ...hits.map((hit) => hit.text),
+    ...(omitted > 0 ? [`[${omitted} more matching event(s) omitted — narrow the pattern or use recall]`] : []),
+    ...(out.truncated ? ["[search budget exhausted; some hits were cut]"] : []),
+  ];
+  if (hits.length > 0) lines.push("[use recall with a (seq N) pointer to restore any hit's full original content]");
+  return {
+    ...out,
+    totalMatches,
+    hits,
+    omitted,
+    text: lines.join("\n\n"),
+  };
 }
