@@ -1,0 +1,20 @@
+{
+  "name": "opencode-vcc-compaction-root",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Workspace root for opencode-vcc-compaction: gate scripts and lint toolchain. The shippable package lives in vcc-plugin/.",
+  "workspaces": [
+    "vcc-plugin"
+  ],
+  "scripts": {
+    "typecheck": "node --check vcc-plugin/index.ts && tsc -p vcc-plugin/tsconfig.tui.json",
+    "test": "node compiler/selftest.mjs && node vcc-plugin/selftest.mjs && node scripts/check-engine-sync.mjs",
+    "lint:md": "markdownlint-cli2 \"**/*.md\""
+  },
+  "devDependencies": {
+    "markdownlint-cli2": "^0.18.1"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

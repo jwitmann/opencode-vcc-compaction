@@ -12,10 +12,10 @@ not the probe workspace: the closed probe harness is frozen under
 
 - `vcc-plugin/` — the npm package (`opencode-vcc-compaction@0.2.0`:
   Effect-direct hook + pure adapter + snapshot store + three `/vcc-*`
-  commands + vendored `engine/`; run
-  `node --check vcc-plugin/index.ts` and `node vcc-plugin/selftest.mjs`).
+  commands + vendored `engine/`; run `npm run typecheck` and
+  `npm run test` from the root).
 - `compiler/` — deterministic reference engine (stages 1–4, verbatim
-  port, dependency-free; run `node compiler/selftest.mjs`). Source of
+  port, dependency-free; covered by `npm run test`). Source of
   truth; vendored byte-identical into `vcc-plugin/engine/`
   (sync-enforced, never hand-edit `engine/`).
 - `examples/` — scratch project registering `../vcc-plugin` with a cheap
@@ -66,11 +66,12 @@ not the probe workspace: the closed probe harness is frozen under
 
 ## Verification
 
-- `commands.typecheck`: `node --check vcc-plugin/index.ts`.
-- `commands.test`: `node compiler/selftest.mjs` plus
+- `commands.typecheck`: `npm run typecheck` (`node --check
+  vcc-plugin/index.ts` plus `tsc -p vcc-plugin/tsconfig.tui.json`).
+- `commands.test`: `npm run test` (`node compiler/selftest.mjs` plus
   `node vcc-plugin/selftest.mjs`, plus
-  `node scripts/check-engine-sync.mjs` for engine/adapter changes.
-- Docs-only changes: `markdownlint-cli2` over the tree (config:
+  `node scripts/check-engine-sync.mjs`).
+- Docs-only changes: `npm run lint:md` (config:
   `.markdownlint-cli2.jsonc`); a PASS before the last edit is stale.
 - Live compaction runs only with explicit approval + explicit `--model`,
   from the scratch project, never a real one.

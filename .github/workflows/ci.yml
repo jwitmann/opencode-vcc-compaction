@@ -30,11 +30,10 @@ jobs:
         with:
           node-version: 26
 
-      - run: node --check vcc-plugin/index.ts
-      - run: node compiler/selftest.mjs
-      - run: node vcc-plugin/selftest.mjs
-      - run: node scripts/check-engine-sync.mjs
-      - run: npx --yes markdownlint-cli2 "**/*.md"
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test
+      - run: npm run lint:md
 
   publish:
     name: Publish to npm

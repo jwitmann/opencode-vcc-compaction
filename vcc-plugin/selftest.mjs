@@ -36,6 +36,15 @@ import {
 } from "./snapshot.mjs";
 import { parseSeqSpec, recallSession, resolveRecallReference } from "./engine/recall.mjs";
 import { sessionEventAt, sessionEvents } from "./engine/session-compat.mjs";
+import {
+  MAX_REPLY_TEXT,
+  MAX_TOAST_TEXT,
+  VCC_REPLY_EVENT,
+  VCC_RPC_ID,
+  buildReplyPayload,
+  isReplyPayload,
+  replyEventType,
+} from "./events.mjs";
 
 let failures = 0;
 /** Compare one vector, logging mismatch detail; counts failures. */
@@ -289,6 +298,25 @@ const recallCmd = (() => {
   return recallFromSnapshot(snap.messages, resolved.selections);
 })();
 check("recall command flow restores text", recallCmd !== null && recallCmd.text.includes("[tool-call read]"), true);
+check("reply event type", replyEventType(), `rpc.${VCC_RPC_ID}.${VCC_REPLY_EVENT}`);
+check("reply payload shape", buildReplyPayload("ses_1", "/vcc-status", "ok"), {
+  sessionID: "ses_1",
+  command: "/vcc-status",
+  text: "ok",
+});
+check("reply payload truncates", buildReplyPayload("s", "/c", "x".repeat(MAX_REPLY_TEXT + 1)), {
+  sessionID: "s",
+  command: "/c",
+  text: `${"x".repeat(MAX_REPLY_TEXT)}\n\n[truncated: reply exceeds ${MAX_REPLY_TEXT} chars — narrow the selection and retry]`,
+});
+check("reply toast threshold", MAX_TOAST_TEXT, 300);
+check(
+  "reply payload validates",
+  isReplyPayload(buildReplyPayload("ses_1", "/vcc-status", "ok")) &&
+    !isReplyPayload(null) &&
+    !isReplyPayload({ sessionID: "ses_1" }),
+  true,
+);
 
 if (failures > 0) {
   console.log(`selftest FAILED: ${failures} case(s)`);

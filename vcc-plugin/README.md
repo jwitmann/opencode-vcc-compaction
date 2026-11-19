@@ -241,7 +241,8 @@ pointers against the per-session snapshot.
 
 ## Commands
 
-Server-only slash commands (no `./tui`): `/vcc-recall`, `/vcc-search`,
+Server slash commands (plus the `./tui` companion below):
+`/vcc-recall`, `/vcc-search`,
 `/vcc-status`. Command invocations cannot read history directly, so the
 `context` hook (with `compaction` as backup) persists a cleaned snapshot
 of the session's messages to `ctx.storage` (`vcc-snapshot/<sessionID>`,
@@ -259,10 +260,29 @@ recall/search; `/vcc-status` reports its age.
   (`maxTokens`/`keepMessages`/reasoning/hide/noise counts), and snapshot
   freshness (version, message count, lastID, age).
 
-Results feed back through `session.prompt`, so the agent presents them.
+Results travel as an RPC event the TUI companion renders: each command
+emits `rpc.opencode-vcc-compaction.replied` and returns void with no
+prompt call, so there is no model turn and no chatter — the TUI toasts
+short replies and dialogs long ones (see `./tui` below). This requires
+the companion: add the package to `cli.json` `plugins`. Without a
+connected TUI the emit goes nowhere and the reply is silent — by
+design (no wake), so non-interactive use stays quiet. Only when RPC
+itself is unavailable (or an emit fails) do replies fall back to
+`session.prompt`, where the agent presents them.
 A nothing-to-do stays silent (log line only, never an empty agent turn);
 a storage read failure replies explicitly ("snapshot read failed, try
-again in a moment"), never a misleading "none yet".
+again in a moment"), never a misleading "none yet". Unexpected command
+errors attempt a visible "command failed, try again" prompt reply before
+giving up to the log.
+
+## TUI companion (`./tui` export)
+
+`tui.tsx` listens for the reply event and renders it immediately: short
+replies as toasts, long ones as large centered dialogs. No keymap
+commands — none are needed, since the event carries its session. Add
+the package to `cli.json` `plugins` (TUI-only surface, also works
+against a remote server). The server commands stay as the transcript
+record; the companion is the quiet visible channel.
 
 ## Message mapping
 
@@ -309,19 +329,23 @@ and control bytes are stripped deterministically before counting.
 ## Verify
 
 ```sh
-node --check vcc-plugin/index.ts
-node vcc-plugin/selftest.mjs
-node scripts/check-engine-sync.mjs
-node compiler/selftest.mjs
+npm run typecheck   # node --check index.ts + tsc -p tsconfig.tui.json
+npm run test        # both selftests + engine-sync
+npm run lint:md     # markdown lint over the tree
 ```
+
+Run from the repo root (workspace scripts; toolchain installs with `npm ci`).
 
 Live compaction runs only with explicit approval + explicit `--model`,
 from a scratch project, never a real one.
 
 ## Status and limits
 
-- v0.2.0 ships the hook + three server-only slash commands
-  (`/vcc-recall`, `/vcc-search`, `/vcc-status`; no `./tui`). `(seq N)`
+- v0.3.0 (in tree, unreleased — package.json still reads 0.2.0
+  until `scripts/release.sh minor` runs) ships the hook + three
+  server slash commands
+  (`/vcc-recall`, `/vcc-search`, `/vcc-status`) plus the `./tui`
+  companion that renders their replies quietly. `(seq N)`
   pointers are 1-based ordinals over the compiled messages (skipped
   messages consume no seq); recall/search resolve them against the
   per-session snapshot.

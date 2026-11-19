@@ -1,6 +1,8 @@
-import { Plugin } from "@opencode/plugin/effect"
-import { Effect } from "effect"
+import { Plugin, Rpc } from "@opencode/plugin/effect"
+import type { SessionInbox } from "@opencode/schema/session-inbox"
+import { Effect, Schema } from "effect"
 import { buildConfig, compileCompaction } from "./adapter.mjs"
+import { VCC_REPLY_EVENT, VCC_RPC_ID, buildReplyPayload } from "./events.mjs"
 import {
   COMPILER_REV,
   SNAPSHOT_KEY_PREFIX,
@@ -31,12 +33,133 @@ import {
 //
 // Effect-direct by owner decision: written against @opencode/plugin/effect
 // from the start, so no convert-to-Effect task ever arises.
+//
+// Command replies travel as an RPC event the TUI companion toasts:
+// the server emits `rpc.opencode-vcc-compaction.replied` and returns
+// void with no prompt call (no wake, no chatter, no inbox row) — the
+// goal-plugin pattern (`get` + event). Without the companion the
+// event goes nowhere, and without RPC itself replies fall back to
+// `session.prompt` (visible + wakes), so output is never lost.
+// Payload shape shared with events.mjs (runtime single source of truth
+// lives there for the dependency-free selftest; this alias only types
+// the emit call site).
+type ReplyPayload = { sessionID: string; command: string; text: string }
+
+const VccRpc = Rpc.define({ id: VCC_RPC_ID,
+  methods: {
+    get: {
+      input: Schema.toStandardSchemaV1(Schema.Struct({ sessionID: Schema.String })),
+      output: Schema.toStandardSchemaV1(
+        Schema.NullOr(
+          Schema.Struct({
+            version: Schema.Number,
+            messages: Schema.Array(Schema.Unknown),
+            count: Schema.Number,
+            lastID: Schema.optional(Schema.String),
+            writtenAt: Schema.Number,
+          }),
+        ),
+      ),
+    },
+  },
+  events: {
+    [VCC_REPLY_EVENT]: {
+      schema: Schema.toStandardSchemaV1(
+        Schema.Struct({ sessionID: Schema.String, command: Schema.String, text: Schema.String }),
+      ),
+    },
+  },
+})
 
 export default Plugin.define({
   id: "opencode-vcc-compaction",
   effect: Effect.fn(function* (ctx) {
     const config = buildConfig(ctx.options)
     const seen = new Map<string, { version: number; count: number; lastID: string | undefined }>()
+
+    const readStored = (sessionID: string, label: string) =>
+      Effect.catch(
+        ctx.storage.get(`${SNAPSHOT_KEY_PREFIX}${sessionID}`),
+        (error) =>
+          Effect.sync(() => {
+            console.warn(`[opencode-vcc-compaction] ${label}: snapshot read failed:`, error)
+            return { __vccReadFailed: true as const }
+          }),
+      )
+
+    // RPC registration must never break init: a JS try/catch around
+    // yield* cannot intercept Effect failures, so catch the cause
+    // channel explicitly and degrade to prompt replies.
+    const rpc = yield* Effect.catchCause(
+      ctx.rpc.register(VccRpc, {
+        get: (input) =>
+          Effect.flatMap(readStored(input.sessionID, "rpc.get"), (stored) => {
+            const classified = classifySnapshotStore(stored as never)
+            if (classified.status !== "ready") return Effect.succeed(null)
+            const candidate = classified.stored as Partial<
+              Record<"version" | "messages" | "count" | "lastID" | "writtenAt", unknown>
+            >
+            // The store only guarantees a non-empty messages array; project
+            // the five schema fields (or null) instead of trusting the
+            // envelope, so hand-written or older shapes fail soft.
+            return Effect.succeed(
+              typeof candidate.version === "number" &&
+                Array.isArray(candidate.messages) &&
+                typeof candidate.count === "number" &&
+                typeof candidate.writtenAt === "number"
+                ? {
+                    version: candidate.version,
+                    messages: candidate.messages,
+                    count: candidate.count,
+                    ...(typeof candidate.lastID === "string" ? { lastID: candidate.lastID } : {}),
+                    writtenAt: candidate.writtenAt,
+                  }
+                : null,
+            )
+          }),
+      }),
+      (cause) =>
+        Effect.flatMap(
+          Effect.sync(() => {
+            console.warn("[opencode-vcc-compaction] rpc unavailable; /vcc-* replies fall back to prompt:", cause)
+          }),
+          () => Effect.succeed(null),
+        ),
+    )
+    const emitReply: ((payload: ReplyPayload) => Effect.Effect<void, unknown>) | null =
+      rpc === null ? null : (payload) => rpc.events.emit(VCC_REPLY_EVENT, payload)
+
+    // Primary path emits the reply event for the TUI companion (silent,
+    // no wake). Fallbacks keep output visible: emit failure or missing
+    // RPC revert to session.prompt (visible + wakes, 0.2.0 behavior).
+    // The host passes `input.prompt` as `{ text }`; normalize a plain
+    // string too so a host-shape change degrades to working, not to a
+    // permanent usage error.
+    const promptText = (input: { prompt: unknown }) =>
+      typeof input.prompt === "string" ? input.prompt : ((input.prompt as { text?: unknown })?.text ?? "")
+
+    const reply = (input: { sessionID: string; delivery?: SessionInbox.Delivery }, command: string, text: string) =>
+      emitReply === null
+        ? ctx.session.prompt({
+            sessionID: input.sessionID,
+            text,
+            delivery: input.delivery,
+          })
+        : Effect.catch(
+            emitReply(buildReplyPayload(input.sessionID, command, text)),
+            (error) =>
+              Effect.flatMap(
+                Effect.sync(() => {
+                  console.warn("[opencode-vcc-compaction] reply emit failed; falling back to prompt:", error)
+                }),
+                () =>
+                  ctx.session.prompt({
+                    sessionID: input.sessionID,
+                    text,
+                    delivery: input.delivery,
+                  }),
+              ),
+          )
 
     const remember = (sessionID: unknown, messages: unknown) =>
       Effect.catch(
@@ -120,32 +243,17 @@ export default Plugin.define({
           execute: (input) =>
             Effect.catchCause(
               Effect.flatMap(
-                Effect.sync(() => parseRecallArgs((input.prompt as { text?: unknown })?.text ?? "")),
+                Effect.sync(() => parseRecallArgs(promptText(input))),
                 (parsed) => {
                   if ("error" in parsed) {
-                    return ctx.session.prompt({
-                      sessionID: input.sessionID,
-                      text: `**/vcc-recall** — ${parsed.error}`,
-                      delivery: input.delivery,
-                    })
+                    return reply(input, "/vcc-recall", `**/vcc-recall** — ${parsed.error}`)
                   }
                   return Effect.flatMap(
-                    Effect.catch(
-                      ctx.storage.get(`${SNAPSHOT_KEY_PREFIX}${input.sessionID}`),
-                      (error) =>
-                        Effect.sync(() => {
-                          console.warn("[opencode-vcc-compaction] vcc-recall: snapshot read failed:", error)
-                          return { __vccReadFailed: true as const }
-                        }),
-                    ),
+                    readStored(input.sessionID, "vcc-recall"),
                     (stored) => {
                       const classified = classifySnapshotStore(stored as never)
                       if (classified.status === "failed") {
-                        return ctx.session.prompt({
-                          sessionID: input.sessionID,
-                          text: "**/vcc-recall** — snapshot read failed, try again in a moment",
-                          delivery: input.delivery,
-                        })
+                        return reply(input, "/vcc-recall", "**/vcc-recall** — snapshot read failed, try again in a moment")
                       }
                       if (classified.status === "empty") {
                         console.log("[opencode-vcc-compaction] vcc-recall: no snapshot yet for this session")
@@ -153,26 +261,30 @@ export default Plugin.define({
                       }
                       const resolved = resolveRecallSelections(classified.messages as never, parsed.type, parsed.id)
                       if (resolved.errors.length > 0 || resolved.selections.length === 0) {
-                        return ctx.session.prompt({
-                          sessionID: input.sessionID,
-                          text: `**/vcc-recall** — ${resolved.errors.join("; ") || "nothing to recall"}`,
-                          delivery: input.delivery,
-                        })
+                        return reply(
+                          input,
+                          "/vcc-recall",
+                          `**/vcc-recall** — ${resolved.errors.join("; ") || "nothing to recall"}`,
+                        )
                       }
                       const recalled = recallFromSnapshot(classified.messages as never, resolved.selections)
-                      return ctx.session.prompt({
-                        sessionID: input.sessionID,
-                        text: formatRecallReply(parsed.type, parsed.id, recalled as never),
-                        delivery: input.delivery,
-                      })
+                      return reply(input, "/vcc-recall", formatRecallReply(parsed.type, parsed.id, recalled as never))
                     },
                   )
                 },
               ),
               (cause) =>
-                Effect.sync(() => {
-                  console.warn("[opencode-vcc-compaction] vcc-recall failed:", cause)
-                }),
+                Effect.catchCause(
+                  ctx.session.prompt({
+                    sessionID: input.sessionID,
+                    text: "**/vcc-recall** — command failed, try again in a moment",
+                    delivery: input.delivery,
+                  }),
+                  () =>
+                    Effect.sync(() => {
+                      console.warn("[opencode-vcc-compaction] vcc-recall failed:", cause)
+                    }),
+                ),
             ),
         })
         editor.add({
@@ -181,32 +293,17 @@ export default Plugin.define({
           execute: (input) =>
             Effect.catchCause(
               Effect.flatMap(
-                Effect.sync(() => parseSearchArgs((input.prompt as { text?: unknown })?.text ?? "")),
+                Effect.sync(() => parseSearchArgs(promptText(input))),
                 (parsed) => {
                   if ("error" in parsed) {
-                    return ctx.session.prompt({
-                      sessionID: input.sessionID,
-                      text: `**/vcc-search** — ${parsed.error}`,
-                      delivery: input.delivery,
-                    })
+                    return reply(input, "/vcc-search", `**/vcc-search** — ${parsed.error}`)
                   }
                   return Effect.flatMap(
-                    Effect.catch(
-                      ctx.storage.get(`${SNAPSHOT_KEY_PREFIX}${input.sessionID}`),
-                      (error) =>
-                        Effect.sync(() => {
-                          console.warn("[opencode-vcc-compaction] vcc-search: snapshot read failed:", error)
-                          return { __vccReadFailed: true as const }
-                        }),
-                    ),
+                    readStored(input.sessionID, "vcc-search"),
                     (stored) => {
                       const classified = classifySnapshotStore(stored as never)
                       if (classified.status === "failed") {
-                        return ctx.session.prompt({
-                          sessionID: input.sessionID,
-                          text: "**/vcc-search** — snapshot read failed, try again in a moment",
-                          delivery: input.delivery,
-                        })
+                        return reply(input, "/vcc-search", "**/vcc-search** — snapshot read failed, try again in a moment")
                       }
                       if (classified.status === "empty") {
                         console.log("[opencode-vcc-compaction] vcc-search: no snapshot yet for this session")
@@ -216,25 +313,29 @@ export default Plugin.define({
                       try {
                         found = searchSnapshot(classified.messages as never, parsed.pattern)
                       } catch (error) {
-                        return ctx.session.prompt({
-                          sessionID: input.sessionID,
-                          text: `**/vcc-search** — ${error instanceof Error ? error.message : String(error)}`,
-                          delivery: input.delivery,
-                        })
+                        return reply(
+                          input,
+                          "/vcc-search",
+                          `**/vcc-search** — ${error instanceof Error ? error.message : String(error)}`,
+                        )
                       }
-                      return ctx.session.prompt({
-                        sessionID: input.sessionID,
-                        text: formatSearchReply(parsed.pattern, found as never),
-                        delivery: input.delivery,
-                      })
+                      return reply(input, "/vcc-search", formatSearchReply(parsed.pattern, found as never))
                     },
                   )
                 },
               ),
               (cause) =>
-                Effect.sync(() => {
-                  console.warn("[opencode-vcc-compaction] vcc-search failed:", cause)
-                }),
+                Effect.catchCause(
+                  ctx.session.prompt({
+                    sessionID: input.sessionID,
+                    text: "**/vcc-search** — command failed, try again in a moment",
+                    delivery: input.delivery,
+                  }),
+                  () =>
+                    Effect.sync(() => {
+                      console.warn("[opencode-vcc-compaction] vcc-search failed:", cause)
+                    }),
+                ),
             ),
         })
         editor.add({
@@ -243,39 +344,36 @@ export default Plugin.define({
           execute: (input) =>
             Effect.catchCause(
               Effect.flatMap(
-                Effect.catch(
-                  ctx.storage.get(`${SNAPSHOT_KEY_PREFIX}${input.sessionID}`),
-                  (error) =>
-                    Effect.sync(() => {
-                      console.warn("[opencode-vcc-compaction] vcc-status: snapshot read failed:", error)
-                      return { __vccReadFailed: true as const }
-                    }),
-                ),
+                readStored(input.sessionID, "vcc-status"),
                 (stored) => {
                   const classified = classifySnapshotStore(stored as never)
                   if (classified.status === "failed") {
-                    return ctx.session.prompt({
-                      sessionID: input.sessionID,
-                      text: "**/vcc-status** — snapshot read failed, try again in a moment",
-                      delivery: input.delivery,
-                    })
+                    return reply(input, "/vcc-status", "**/vcc-status** — snapshot read failed, try again in a moment")
                   }
-                  return ctx.session.prompt({
-                    sessionID: input.sessionID,
-                    text: formatStatusText(
+                  return reply(
+                    input,
+                    "/vcc-status",
+                    formatStatusText(
                       classified.status === "ready" ? classified.stored as never : undefined,
                       config as never,
                       COMPILER_REV as string,
                       Date.now(),
                     ),
-                    delivery: input.delivery,
-                  })
+                  )
                 },
               ),
               (cause) =>
-                Effect.sync(() => {
-                  console.warn("[opencode-vcc-compaction] vcc-status failed:", cause)
-                }),
+                Effect.catchCause(
+                  ctx.session.prompt({
+                    sessionID: input.sessionID,
+                    text: "**/vcc-status** — command failed, try again in a moment",
+                    delivery: input.delivery,
+                  }),
+                  () =>
+                    Effect.sync(() => {
+                      console.warn("[opencode-vcc-compaction] vcc-status failed:", cause)
+                    }),
+                ),
             ),
         })
       })
