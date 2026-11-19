@@ -8,9 +8,9 @@ Context file for AI agents working on the VCC port investigation: can
 
 1. Read `PROBE.md`, then `REUSE.md`.
 2. Record `opencode --version` + resolved `@opencode/plugin` version with every result.
-3. Resolutions fold back into
-   `/home/jerome/operator-context-management/docs/open-questions.md` →
-   `spec.md` / `decisions.md` per `docs/probes.md` Phase 3.
+3. Resolutions live here: verdicts and durable findings go under
+   `docs/research/` (per owner decision 2026-11-19, probe resolutions
+   do NOT fold into `operator-context-management/docs/`).
 
 ## Project layout
 

@@ -55,9 +55,9 @@ stream reaches.
 
 - Unblocks: the VCC compiler port per `REUSE.md` (turn-grouping, budgets,
   keep-tail slicing) — the engine question is settled.
-- Still owed (Phase 3): fold this resolution into
-  `operator-context-management/docs/` (`open-questions.md` → `spec.md` /
-  `decisions.md`) per `AGENTS.md` step 3.
+- Stays here: per owner decision 2026-11-19 this verdict lives in this
+  repo's `docs/research/` and is NOT folded into
+  `operator-context-management/docs/`.
 - Not re-proven: an `http.request` negative on Branch A (the hook postdates
   the A run). No-call proof for A is code-path + store + billing, which is
   sufficient; re-running A solely for the negative is optional.
