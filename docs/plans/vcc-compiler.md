@@ -40,8 +40,10 @@ in each ported file).
 - DROP here (DSH-harness, not engine): `region.js` (session-state
   machinery → host `compact()` + hook, at handoff), `tool.js` cordis
   wiring, `command`/`preset-check`/`shadow-check`/`session-compat`,
-  `index.js` engine assembly, `elideCheckpointInjectedBodies` (OpenCode
-  preamble is per-request transient — REUSE.md reject).
+  `index.js` engine assembly. `elideCheckpointInjectedBodies` is carried
+  verbatim inside `compile.mjs` (deleting it would fork `compileNodes`)
+  but never enabled — the OpenCode preamble is per-request transient
+  (REUSE.md reject); see the `compile.mjs` header.
 
 ## Acceptance
 
@@ -53,7 +55,8 @@ in each ported file).
   `[checkpoint N]` pointer; no paraphrase anywhere (output substrings
   of input, plus fixed labels/markers).
 - No model calls, no dependencies (node builtins only for the self-test
-  runner; the modules themselves import nothing).
+  runner; the modules import nothing beyond the sibling stage split,
+  `compile.mjs` ← `tokenize.mjs`).
 
 ## Verification
 

@@ -8,10 +8,11 @@
  *   sibling compile stage can import it across the file split.
  * - No DSH imports (upstream module is already dependency-free).
  *
- * Deliberate non-idiom: this file keeps upstream's semicolons verbatim
- * instead of the repo's no-semicolon style. The port's value is
+ * Note on style: this file keeps upstream's semicolons verbatim for
  * line-for-line comparability with the MIT source (present and future
- * re-sync); reformatting would obscure lineage for zero behavior gain.
+ * re-sync). This coincides with the repo's own `.mjs` style
+ * (`compiler/selftest.mjs`, `scripts/verify-evidence.mjs` both use
+ * semicolons), so there is no style conflict in practice.
  * `compiler/selftest.mjs` (our own file) follows repo style.
  *
  * Everything below is deterministic and offline: same input text always
