@@ -37,6 +37,9 @@ not the probe workspace: the closed probe harness is frozen under
   with cwd `examples/`.
 - Tag every live result with `opencodeVersion` + `pluginVersion`.
 - Commit locally when a logical unit is complete and the gate passes.
+- Use conventional commit subjects (`feat:`, `fix:`, `docs:`, …) so
+  `scripts/changelog.sh` categorizes the release notes into
+  Features / Fixes / Documentation (everything else lands in Other).
 
 ### Don't
 
