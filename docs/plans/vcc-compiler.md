@@ -77,13 +77,13 @@ in each ported file).
 
 ## Handoff (out of scope)
 
-Reference module → `packages/core/src/context/` (or the consumer's chosen
-home) per REUSE.md, with the hook adapter (`Message` → nodes,
-`keepID` = first kept `SessionMessage.ID`). That move is a new task.
-If the adapter ships as a plugin, write it against
-`@opencode/plugin/effect` — the Effect implementation is the canonical
-runtime and the Promise API (`Plugin.define` + `setup`, as used by our
-throwaway probe) is its async/await-equivalent wrapper
-(`packages/plugin/src/effect/PLAN.md:421`,
-`packages/plugin/src/README.md:3` in the v2.3.2 checkout). The `compiler/`
-modules are style-agnostic (pure offline functions) and work under either.
+End game (owner-stated): a valid shippable OpenCode plugin — the
+deterministic compiler in `compiler/` wired through a hook adapter
+(`Message` → nodes, `keepID` = first kept `SessionMessage.ID`),
+written directly against `@opencode/plugin/effect` (canonical runtime
+per `packages/plugin/src/effect/PLAN.md:421` in the v2.3.2 checkout;
+the Promise API is its async/await-equivalent wrapper), so no
+convert-to-Effect task ever arises. Reference module →
+`packages/core/src/context/` (or the consumer's chosen home) per REUSE.md.
+That move is a new task. The throwaway probe stays as completed evidence,
+not the foundation: its PASS verdict proved the seam, not the scaffolding.
