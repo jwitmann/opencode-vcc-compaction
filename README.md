@@ -31,7 +31,7 @@ Full manual (example output, config behavior, mapping, tokenizer): [`vcc-plugin/
 
 ## Install
 
-Not on npm yet (first publish goes through CI once the `NPM_TOKEN` secret exists). For now, clone and register the local path:
+Not on npm yet — install from a clone and register the local path:
 
 ```jsonc
 // opencode.jsonc

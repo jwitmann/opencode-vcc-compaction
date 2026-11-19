@@ -111,9 +111,7 @@ information.
 
 ## Install
 
-Not on npm yet — the first publish goes through CI once the `NPM_TOKEN`
-secret exists (granular Read+write token, same recipe as
-opencode-dev-framework). Until then, install from a clone.
+Not on npm yet. Until it is, install from a clone:
 Clone `https://github.com/jwitmann/opencode-vcc-compaction` and
 register the local path:
 
