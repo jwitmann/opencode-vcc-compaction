@@ -50,10 +50,13 @@ hook adapter written directly against `@opencode/plugin/effect`
   summary shape + pointers, double-run determinism.
 - `vcc-plugin/package.json` — `vcc-compaction@0.1.0`, `peerDependencies`
   (`effect ^4.0.0` per SDK README, `@opencode/plugin ^2.0.0`), `main:
-  ./index.ts`, `files: [index.ts, adapter.mjs, README.md]`, `engines:
-  node >=18`, `repository` (+`directory: vcc-plugin`), `keywords`.
-  Engine stays in `../compiler`
-  (relative import; path/git installs work; npm bundling is follow-up).
+  ./index.ts`, `files: [index.ts, adapter.mjs, engine/, README.md]`,
+  `engines: node >=18`, `repository` (+`directory: vcc-plugin`), `keywords`.
+  Engine is vendored byte-identical from `../compiler` into
+  `vcc-plugin/engine/` so the tarball is self-contained; `../compiler`
+  stays the source of truth, sync enforced by
+  `scripts/check-engine-sync.mjs` (fixes land in `compiler/` first, the
+  copy is never hand-edited).
 - `vcc-plugin/README.md` — install (path + `{package, options}` object
   form), config table, how it works, Effect note, status/limits
   (ordinal seqs — recall tools are follow-up; multi-result link limit).

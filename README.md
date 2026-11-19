@@ -6,8 +6,9 @@ On every `compaction` hook the plugin compiles history with a deterministic regi
 
 ## Layout
 
-- `vcc-plugin/` — the product: `vcc-compaction@0.1.0` (Effect-direct hook + pure adapter + unit tests). Start here: [`vcc-plugin/README.md`](vcc-plugin/README.md).
-- `compiler/` — deterministic reference engine (stages 1–4, verbatim port, dependency-free). Imported by the adapter via relative path.
+- `vcc-plugin/` — the product: `vcc-compaction@0.1.0` (Effect-direct hook + pure adapter + vendored engine + unit tests). Start here: [`vcc-plugin/README.md`](vcc-plugin/README.md).
+- `compiler/` — deterministic reference engine (stages 1–4, verbatim port, dependency-free). Source of truth; vendored byte-identical into `vcc-plugin/engine/` (sync-enforced).
+- `.github/workflows/` — CI: typechecks, selftests, evidence gate, engine-sync, markdown lint; tag pushes publish to npm and cut GitHub releases.
 - `probe-plugin/` + `probe-project/` + `probe-results/` — the throwaway probe that decided everything (Branch A/B live runs, committed JSONL evidence). History, not the foundation — do not extend.
 - `docs/research/` — verdicts: [`compaction-probe-verdict.md`](docs/research/compaction-probe-verdict.md) (closes `PROBE.md`), [`vcc-plugin-live-verdict.md`](docs/research/vcc-plugin-live-verdict.md) (plugin live PASS).
 - `docs/plans/` — build records for the compiler port and the plugin.
@@ -17,7 +18,7 @@ On every `compaction` hook the plugin compiles history with a deterministic regi
 
 ## Install
 
-Not on npm yet (blocked on bundling `../compiler/*` into the package — see limits). For now, clone and register the local path:
+Not on npm yet (first publish goes through CI once the `NPM_TOKEN` secret exists). For now, clone and register the local path:
 
 ```jsonc
 // opencode.jsonc
@@ -31,6 +32,7 @@ Not on npm yet (blocked on bundling `../compiler/*` into the package — see lim
   // Optional: "compaction": { "buffer": "99%" } fires auto-compaction at
   // ~1% of window (demo-harness trigger; leave the default in production).
 }
+```
 
 Full option table in [`vcc-plugin/README.md`](vcc-plugin/README.md).
 
@@ -40,6 +42,7 @@ Full option table in [`vcc-plugin/README.md`](vcc-plugin/README.md).
 node --check probe-plugin/index.ts && node --check vcc-plugin/index.ts
 node compiler/selftest.mjs
 node vcc-plugin/selftest.mjs
+node scripts/check-engine-sync.mjs
 node scripts/verify-evidence.mjs
 ```
 

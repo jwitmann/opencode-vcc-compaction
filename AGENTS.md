@@ -28,8 +28,8 @@ is `vcc-plugin/`; `probe-plugin/` + `probe-results/` are closed evidence.
 - `compiler/` — deterministic reference engine (stages 1–4, verbatim port,
   dependency-free; run `node compiler/selftest.mjs`).
 - `vcc-plugin/` — the product (`vcc-compaction@0.1.0`, Effect-direct hook +
-  pure adapter; run `node --check vcc-plugin/index.ts` and
-  `node vcc-plugin/selftest.mjs`).
+  pure adapter + vendored `engine/`; run `node --check vcc-plugin/index.ts`
+  and `node vcc-plugin/selftest.mjs`).
 - `demo-project/` — scratch harness registering `../vcc-plugin` with a cheap
   `compaction.buffer` trigger. Brain-free like `probe-project/`.
 - `docs/` — durable documents (`research/` verdicts, `plans/` build records).
@@ -73,8 +73,9 @@ is `vcc-plugin/`; `probe-plugin/` + `probe-results/` are closed evidence.
 - `commands.typecheck`: `node --check probe-plugin/index.ts && node --check vcc-plugin/index.ts`.
 - `commands.test`: `node scripts/verify-evidence.mjs`
   (JSONC configs parse + every JSONL line version-tagged;
-  proven fail-on-mutation 2026-11-19) plus `node compiler/selftest.mjs`
-  and `node vcc-plugin/selftest.mjs` for engine/adapter changes.
+  proven fail-on-mutation 2026-11-19) plus `node compiler/selftest.mjs`,
+  `node vcc-plugin/selftest.mjs`, and `node scripts/check-engine-sync.mjs`
+  for engine/adapter changes.
 - Evidence standard is `probe-results/*.jsonl` lines (versions on every line)
   plus static source refs (`file:line`). Gate enforcement is `require_review`
   plus the two runnable gates — see `.dev-framework/hardening.md`.

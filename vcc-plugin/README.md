@@ -1,7 +1,8 @@
 # vcc-compaction — deterministic LLM-free compaction for OpenCode V2
 
-Valid shippable plugin (owner end game): the VCC reference engine from
-`../compiler/` wired through a hook adapter written directly against
+Valid shippable plugin (owner end game): the VCC reference engine
+(vendored byte-identical from `../compiler/` into `./engine/`,
+sync-enforced) wired through a hook adapter written directly against
 `@opencode/plugin/effect` (canonical runtime), so no convert-to-Effect
 task ever arises. Version: `vcc-compaction@0.1.0`.
 
@@ -26,8 +27,9 @@ compaction. Never a broken summary.
 
 ## Install
 
-Not on npm yet — install from a clone (npm publish is blocked on
-bundling `../compiler/*` into this package; see Status and limits).
+Not on npm yet — the first publish goes through CI once the `NPM_TOKEN`
+secret exists (granular Read+write token, same recipe as
+opencode-dev-framework). Until then, install from a clone.
 Clone `https://github.com/jwitmann/opencode-vcc-compaction` and
 register the local path:
 
@@ -43,9 +45,9 @@ register the local path:
 }
 ```
 
-Because the adapter imports the engine via the relative path
-`../compiler/*`, the plugin must be installed as this directory inside
-a full repo checkout — copying `vcc-plugin/` out alone will break.
+The package is self-contained: the adapter imports the engine from
+`./engine/` inside the package, so `vcc-plugin/` installs alone (path,
+git, or npm tarball).
 
 Optional `opencode.jsonc` addition — auto-compaction threshold:
 
@@ -84,6 +86,11 @@ throws loudly at setup, never a silent no-strip.
 - `adapter.mjs` — pure mapping + compile (unit-tested, no host). See its
   header for the vocabulary mapping (tool args, tool-result projection,
   checkpoint synthesis, skip cases, tool-link seam).
+- `engine/` — the VCC reference engine vendored byte-identical from
+  `../compiler/` (`tokenize`, `compile`, `recall`, `session-compat`,
+  `search`). Ships inside the npm tarball; fixes land in `../compiler/`
+  first and are re-vendored, never hand-edited (enforced by
+  `../scripts/check-engine-sync.mjs`).
 - `selftest.mjs` — adapter unit vectors (`node vcc-plugin/selftest.mjs`).
 
 ## Status and limits
@@ -95,7 +102,6 @@ throws loudly at setup, never a silent no-strip.
   (`message.toolCallId` carries one id); the rest still compile as text.
 - `effect` comes from the host instance — declared as peer
   (`effect ^4.0.0`, `@opencode/plugin ^2.0.0`), never bundled.
-- Engine import is relative (`../compiler/*`): path/git installs work as
-  a directory plugin; bundling to a single file for npm publish is
-  follow-up (also recorded: the Object-form `package` registration above
-  is how options reach the plugin).
+- Engine source of truth is `../compiler/`; the `./engine/` copy is
+  byte-identical (also recorded: the Object-form `package` registration
+  above is how options reach the plugin).

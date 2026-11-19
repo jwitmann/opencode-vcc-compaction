@@ -33,6 +33,7 @@ echo "==> Running validation..."
 node --check probe-plugin/index.ts && node --check vcc-plugin/index.ts
 node compiler/selftest.mjs
 node vcc-plugin/selftest.mjs
+node scripts/check-engine-sync.mjs
 node scripts/verify-evidence.mjs
 npx --yes markdownlint-cli2 "**/*.md"
 
@@ -73,5 +74,6 @@ echo ""
 echo "To publish, push the tag (publishing itself is your action):"
 echo "  git push origin main --tags"
 echo ""
-echo "A tag push will additionally trigger the publish workflow once it"
-echo "exists, using this version's CHANGELOG section as the release notes."
+echo "A tag push triggers the publish workflow (.github/workflows/ci.yml),"
+echo "which publishes from ./vcc-plugin with --provenance and cuts the"
+echo "GitHub release from this version's CHANGELOG section."

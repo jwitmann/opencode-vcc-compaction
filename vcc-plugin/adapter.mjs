@@ -2,7 +2,7 @@
  * Hook adapter: OpenCode `Message` values → VCC `CompileNode` values.
  *
  * Pure offline mapping plus compile (no Effect import, no dependencies
- * beyond `../compiler/*`, so it unit-tests with plain node). The thin
+ * beyond `./engine/*`, so it unit-tests with plain node). The thin
  * Effect wiring lives in `index.ts`; everything decidable lives here.
  *
  * Vocabulary notes (verified against the v2.3.2 checkout):
@@ -36,7 +36,7 @@ import {
   compileNoisePatterns,
   compileRegion,
   frameCheckpoint,
-} from "../compiler/compile.mjs";
+} from "./engine/compile.mjs";
 
 /** Upstream engine defaults (`src/index.js` in dsh-compaction-vcc@0.7.4). */
 export const DEFAULT_PLUGIN_CONFIG = Object.freeze({
