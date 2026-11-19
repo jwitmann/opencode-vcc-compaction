@@ -13,7 +13,6 @@
  * re-sync). This coincides with the repo's own `.mjs` style
  * (`compiler/selftest.mjs`, `scripts/verify-evidence.mjs` both use
  * semicolons), so there is no style conflict in practice.
- * `compiler/selftest.mjs` (our own file) follows repo style.
  *
  * Everything below is deterministic and offline: same input text always
  * yields the same tokens, counts, and slices.
