@@ -1,0 +1,12 @@
+{
+  "name": "vcc-compaction",
+  "version": "0.1.0",
+  "description": "Deterministic LLM-free compaction summaries for OpenCode V2 (VCC reference engine, Effect-direct hook).",
+  "license": "MIT",
+  "type": "module",
+  "files": ["index.ts", "adapter.mjs", "README.md"],
+  "peerDependencies": {
+    "@opencode/plugin": "^2.0.0",
+    "effect": "^4.0.0"
+  }
+}

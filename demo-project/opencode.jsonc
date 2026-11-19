@@ -1,0 +1,12 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": [
+    {
+      "package": "../vcc-plugin",
+      "options": { "maxTokens": 2000, "keepMessages": 4 }
+    }
+  ],
+  // Demo harness only: compact at ~1% of window so the hook fires cheaply.
+  // The override mechanism under test is threshold-independent.
+  "compaction": { "buffer": "99%" }
+}
