@@ -80,3 +80,10 @@ in each ported file).
 Reference module → `packages/core/src/context/` (or the consumer's chosen
 home) per REUSE.md, with the hook adapter (`Message` → nodes,
 `keepID` = first kept `SessionMessage.ID`). That move is a new task.
+If the adapter ships as a plugin, write it against
+`@opencode/plugin/effect` — the Effect implementation is the canonical
+runtime and the Promise API (`Plugin.define` + `setup`, as used by our
+throwaway probe) is its async/await-equivalent wrapper
+(`packages/plugin/src/effect/PLAN.md:421`,
+`packages/plugin/src/README.md:3` in the v2.3.2 checkout). The `compiler/`
+modules are style-agnostic (pure offline functions) and work under either.
