@@ -13,5 +13,6 @@ dist/
 # live in operator-context-management/docs (committed) per Phase 3
 /.operator/
 
-# dev-framework
+# dev-framework (local-only: profile + state stay on this machine)
+/.dev-framework.yml
 /.dev-framework/
