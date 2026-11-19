@@ -10,6 +10,12 @@
 #
 # Defaults to `patch` if no bump type is given.
 #
+# First release (v0.1.0, version + CHANGELOG section already seeded):
+# do NOT run this script — it would bump to v0.1.1 and skip v0.1.0.
+# Commit, push, tag v0.1.0 directly (`git tag -a v0.1.0 -m "Release
+# v0.1.0" && git push origin main v0.1.0`); the tag push triggers the
+# publish workflow. This script is for every release after that.
+#
 # What it does:
 #   1. Runs the full validation suite (typechecks, selftests, evidence
 #      gate, markdown lint).
@@ -28,6 +34,11 @@ if [[ "$BUMP" != "patch" && "$BUMP" != "minor" && "$BUMP" != "major" ]]; then
 fi
 
 cd "$(dirname "$0")/.."
+
+if [ -n "$(git status --porcelain)" ]; then
+  echo "Working tree dirty — commit or stash unrelated changes, then re-run." >&2
+  exit 1
+fi
 
 echo "==> Running validation..."
 node --check probe-plugin/index.ts && node --check vcc-plugin/index.ts

@@ -55,5 +55,7 @@ mechanism, cheaper trigger), the next short turn compacted immediately.
   (`vcc-plugin/selftest.mjs`: `* read "auth.js" (seq 2 -> result 3)`).
 - Recall tools / pointer translation: follow-up work per the plan
   (pointers are 1-based ordinals here).
-- npm bundling: `adapter.mjs` imports `../compiler/*` relatively — fine
-  for path/git installs, follow-up for npm publish.
+- npm bundling: DONE after this verdict — `adapter.mjs` now imports the
+  vendored `./engine/*` (byte-identical to `compiler/*`, sync-enforced),
+  so the published tarball is self-contained. The `../compiler/*` note
+  above is stale and superseded.

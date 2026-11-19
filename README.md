@@ -5,17 +5,19 @@ text — and the model then reasons from it as if it were fact.**
 
 This plugin removes the model from that step. Port of [`dsh-compaction-vcc`](https://github.com/tingfeng-droid/dsh-compaction-vcc) (MIT, itself a fork of `TsFreddie/dsh-compaction-instant`), written directly against `@opencode/plugin/effect`.
 
-On every `compaction` hook the plugin compiles history with a deterministic region compiler and sets `event.result = { summary, metadata: { keepID } }`. The host takes its `fromHook` short-circuit: the summary persists verbatim, the tail rebuilds from `keepID`, and **no model call is billed** on the compaction path — proven live on host v2.3.2 (see `docs/research/vcc-plugin-live-verdict.md`).
+On every `compaction` hook the plugin compiles history with a deterministic region compiler and sets `event.result = { summary, metadata: { keepID } }`. The host takes its `fromHook` short-circuit: the summary persists verbatim, the tail rebuilds from `keepID`, and **no model call is made** on the compaction path — proven live on host v2.3.2 (see `docs/research/vcc-plugin-live-verdict.md`).
 
 Why verbatim: a model asked to summarize fills what it cannot quite recall with plausible wording — invented, fluent, and then treated as factual premise. This engine only moves original text, never rewriting a character: every elision carries a `(seq N)` pointer back to its source event. The model sees original tokens or explicitly marked pointers. Nothing else.
 
-- **LLM-free** — no summarizer prompt, no inference latency, no token spend.
+- **LLM-free** — no summarizer prompt, no inference latency, no model token spend.
 - **Verbatim** — prior checkpoints carried over word for word, never re-summarized.
 - **Deterministic** — same messages + config → byte-identical summary.
-- **Measured** — 7,500 mixed messages compile to a ~28k-character summary in ~0.8 s on the dev machine (full sweep in [`vcc-plugin/README.md`](vcc-plugin/README.md#performance)).
+- **Measured** — full sweep in [`vcc-plugin/README.md`](vcc-plugin/README.md#performance).
 - **Fail-safe** — when no keepID can be picked, the hook abstains and the host falls back to model compaction. Never a broken summary.
 
-Full manual (example output, config behavior, mapping, tokenizer): [`vcc-plugin/README.md`](vcc-plugin/README.md).
+Full manual (example output, config behavior, mapping, tokenizer, full
+Performance sweep): [`vcc-plugin/README.md`](vcc-plugin/README.md) — this
+is also the document npm renders on the package page.
 
 ## Layout
 
@@ -31,14 +33,27 @@ Full manual (example output, config behavior, mapping, tokenizer): [`vcc-plugin/
 
 ## Install
 
-Not on npm yet — install from a clone and register the local path:
+```bash
+opencode plugin add vcc-compaction
+```
+
+Or declare it in `opencode.json`:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["vcc-compaction"]
+}
+```
+
+With options:
 
 ```jsonc
 // opencode.jsonc
 {
   "plugins": [
     {
-      "package": "/abs/path/to/opencode-vcc-compaction/vcc-plugin",
+      "package": "vcc-compaction",
       "options": { "maxTokens": 8192, "keepMessages": 6 },
     },
   ],
@@ -63,7 +78,10 @@ Live compaction runs only with explicit approval + explicit `--model`, from a sc
 
 ## Status and limits
 
-- v1 ships the engine: deterministic summary + keep-tail. `(seq N)` pointers are 1-based ordinals over the compacted messages; OpenCode-native recall (message/part-ID resolution) is follow-up work.
+- v0.1.0 ships the hook + verbatim summary only: no slash commands, no
+  recall tools. `(seq N)` pointers are 1-based ordinals over the compiled
+  messages (skipped messages consume no seq); OpenCode-native recall
+  (message/part-ID resolution) is follow-up work, detailed in the manual.
 - When the adapter cannot pick a `keepID` it abstains (`result` unset → host falls back to model compaction). Never a broken summary.
 - `effect` comes from the host instance (peer `effect ^4.0.0`, `@opencode/plugin ^2.0.0`), never bundled.
 

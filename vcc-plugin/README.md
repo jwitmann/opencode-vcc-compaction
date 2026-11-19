@@ -98,14 +98,14 @@ information.
 ## Key features
 
 - **LLM-free** — compaction never invokes a model. No summarizer prompt, no
-  inference latency, no token spend; the compile is deterministic text
-  processing.
+  inference latency, no model token spend; the compile is deterministic
+  text processing.
 - **Verbatim** — output contains only original tokens. Prior checkpoints
   are copied word for word instead of being re-summarized.
 - **Deterministic** — the same messages + config always compile to the
   byte-identical summary (proven by double-run selftests).
-- **Measured** — 7,500 mixed messages compile to a ~28k-character summary
-  in ~0.8 s on the dev machine, byte-identical across runs (see
+- **Measured** — 4,998 mixed messages compile to a ~28k-character summary
+  in ~0.5 s on the dev machine, byte-identical across runs (see
   Performance).
 - **Fail-safe** — no keepID, no result: the host falls back to model
   compaction rather than persisting a broken summary.
@@ -141,16 +141,29 @@ not the input.
 
 ## Install
 
-Not on npm yet. Until it is, install from a clone:
-Clone `https://github.com/jwitmann/opencode-vcc-compaction` and
-register the local path:
+Requires OpenCode `v2.x` (live-verified on `v2.3.2`).
+
+```bash
+opencode plugin add vcc-compaction
+```
+
+Or declare it in `opencode.json`:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["vcc-compaction"]
+}
+```
+
+With options (all optional; defaults in Configuration below):
 
 ```jsonc
 // opencode.jsonc
 {
   "plugins": [
     {
-      "package": "/abs/path/to/opencode-vcc-compaction/vcc-plugin",
+      "package": "vcc-compaction",
       "options": { "maxTokens": 8192, "keepMessages": 6 },
     },
   ],
@@ -158,8 +171,12 @@ register the local path:
 ```
 
 The package is self-contained: the adapter imports the engine from
-`./engine/` inside the package, so `vcc-plugin/` installs alone (path,
-git, or npm tarball).
+`./engine/` inside the package, so it installs from npm alone.
+
+From source instead: clone
+`https://github.com/jwitmann/opencode-vcc-compaction` and register the
+local path (`"package": "/abs/path/to/opencode-vcc-compaction/vcc-plugin"`)
+in the same object form.
 
 Optional `opencode.jsonc` addition — auto-compaction threshold:
 
@@ -216,13 +233,14 @@ How the budgets behave:
 
 ## Seq pointers and recall
 
-`(seq N)` ordinals are 1-based positions over the compacted messages, not
-durable host ids — the hook only sees the request window. Every checkpoint
-heads with a short RECALL guide telling the model how to recover elided
-content; OpenCode-native recall tools (resolving message/part IDs against
-the session log) are follow-up work, recorded in the plan. v1 ships the
-engine: deterministic summary + keep-tail, with every cut marked and
-pointing at its source.
+`(seq N)` ordinals are 1-based positions over the compiled messages
+(skipped messages consume no seq), not durable host ids — the hook only
+sees the request window. Every checkpoint heads with a short RECALL guide
+telling the model how to recover elided content; OpenCode-native recall
+tools (resolving message/part IDs against the session log) are
+follow-up work, recorded in [the plan](../docs/plans/vcc-plugin.md).
+v0.1.0 ships the engine: deterministic summary + keep-tail, with every
+cut marked and pointing at its source.
 
 ## Message mapping
 
@@ -265,8 +283,8 @@ and control bytes are stripped deterministically before counting.
 ```sh
 node --check vcc-plugin/index.ts
 node vcc-plugin/selftest.mjs
-node ../scripts/check-engine-sync.mjs
-node ../compiler/selftest.mjs
+node scripts/check-engine-sync.mjs
+node compiler/selftest.mjs
 ```
 
 Live compaction runs only with explicit approval + explicit `--model`,
@@ -274,15 +292,17 @@ from a scratch project, never a real one.
 
 ## Status and limits
 
-- v1 ships the engine: deterministic summary + keep-tail. `(seq N)`
-  pointers are ordinals over the compacted messages; OpenCode-native
+- v0.1.0 ships the hook + verbatim summary only: no slash commands, no
+  recall tools. `(seq N)`
+  pointers are 1-based ordinals over the compiled messages (skipped
+  messages consume no seq); OpenCode-native
   recall (message/part-ID resolution) is follow-up work.
 - Multi-result tool messages link the first result id only
   (`message.toolCallId` carries one id); the rest still compile as text.
 - `effect` comes from the host instance — declared as peer
   (`effect ^4.0.0`, `@opencode/plugin ^2.0.0`), never bundled.
 - Engine source of truth is `../compiler/`; the `./engine/` copy is
-  byte-identical (also recorded: the Object-form `package` registration
-  above is how options reach the plugin).
+  byte-identical (also recorded: the object-form `package` registration
+  with `options:` in Install is how options reach the plugin).
 
 MIT licensed — see `../LICENSE`.
