@@ -11,7 +11,7 @@
  * Note on style: this file keeps upstream's semicolons verbatim for
  * line-for-line comparability with the MIT source (present and future
  * re-sync). This coincides with the repo's own `.mjs` style
- * (`compiler/selftest.mjs`, `scripts/verify-evidence.mjs` both use
+ * (`compiler/selftest.mjs`, `scripts/check-engine-sync.mjs` both use
  * semicolons), so there is no style conflict in practice.
  *
  * Everything below is deterministic and offline: same input text always

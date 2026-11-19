@@ -1,6 +1,6 @@
 # Verdict: vcc-plugin live run (Effect-direct deterministic compaction)
 
-**Question** (`docs/plans/vcc-plugin.md`): does the shippable Effect-direct
+**Question** (`archive/plans/vcc-plugin.md`): does the shippable Effect-direct
 plugin persist a deterministic VCC summary through the real host path —
 `event.result = { summary, metadata: { keepID } }` → `fromHook`, no model
 call, tail kept, session continues?
@@ -13,16 +13,20 @@ usage — the `fromHook` short-circuit, not a model call.
 ## Base
 
 - Host `opencode v2.3.2` (`opencode --version` in the elevated run),
-  plugin `vcc-compaction@0.1.0`, model
+  plugin `vcc-compaction@0.1.0` (renamed `opencode-vcc-compaction`
+  before first publish — same code, new tag), model
   `opencode-go/muse-spark-1.3-contributor` for all turns (same model as the
   Branch A/B probes). Effect version is host-provided (not recorded —
   declared as peer `^4.0.0`).
-- Harness: `demo-project/opencode.jsonc` registers `../vcc-plugin` with
+- Harness: `demo-project/opencode.jsonc` (since renamed `examples/`)
+  registers `../vcc-plugin` with
   `{ maxTokens: 2000, keepMessages: 4 }`; `compaction.buffer 99%`.
 - Session `ses_vcc_live_2`, scratch essays to accumulate history.
 - Raw evidence: `session_message` row `msg_1f2c8158b001Fi9i6CcUndI4BD`
   (`type: compaction`, `status: completed`, `reason: auto`); host log
   `~/.local/share/opencode/log/opencode.log`.
+  (Relocated 2026-11-19: sibling probe harness/evidence frozen under
+  `archive/`; this record's verdict is unchanged.)
 
 ## What happened
 
@@ -37,6 +41,8 @@ mechanism, cheaper trigger), the next short turn compacted immediately.
 - `summary` (7275 chars) opens with the checkpoint preamble, carries
   `<compacted-checkpoint>` tags, the `RECALL:` guide, and the header
   `[vcc-compaction vcc-compiler-debug-2: 17 messages -> 17 entries]` —
+  quoted verbatim as persisted (marker renamed `opencode-vcc-compaction`
+  before first publish; no published checkpoint carries the old tag) —
   a format no model summarizer can emit (it names our compiler revision).
 - `metadata.keepID = msg_1f2a58bfa001h8A302WcdQOCcU` resolves to a real
   `assistant` message in the same session (tail kept verbatim beside the

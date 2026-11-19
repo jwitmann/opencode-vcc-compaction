@@ -232,7 +232,7 @@ export function compileCompaction(messages, config = buildConfig({})) {
   const keepID = pickKeepID(list, config.keepMessages);
   if (keepID === undefined) return undefined;
   const region = compileRegion(nodes, config);
-  const headerLine = `[vcc-compaction ${COMPILER_REV}: ${nodes.length} messages -> ${region.entries.length} entries]`;
+  const headerLine = `[opencode-vcc-compaction ${COMPILER_REV}: ${nodes.length} messages -> ${region.entries.length} entries]`;
   const footerLine = region.capped === true
     ? [`[cap enforced at ${config.maxTokens} entry tokens]`]
     : undefined;

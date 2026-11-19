@@ -85,7 +85,7 @@ function runSuite() {
   ];
   const full = compileCompaction(MSGS, buildConfig({}));
   out.fullKeepID = full.keepID;
-  out.fullPointers = [full.summary.includes('(seq 2 -> result 3)'), full.summary.includes("RECALL:"), full.summary.includes("[vcc-compaction")];
+  out.fullPointers = [full.summary.includes('(seq 2 -> result 3)'), full.summary.includes("RECALL:"), full.summary.includes("[opencode-vcc-compaction")];
   out.fullStats = [full.stats.nodes, full.stats.entries > 0, full.capped];
   out.abstain = compileCompaction([{ role: "user", content: [{ type: "text", text: "no ids anywhere" }] }], buildConfig({}));
   out.defaultConfig = compileCompaction([{ id: "x", role: "user", content: [{ type: "text", text: "hi" }] }]).keepID;

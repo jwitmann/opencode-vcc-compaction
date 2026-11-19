@@ -17,7 +17,7 @@
  *   the DSH host. The OpenCode mapping lives in config (`noisePatterns`,
  *   `toolKeyFields`, `toolArgTools`, `hideTools`, `elideSourceKinds`) and in
  *   the node-projection adapter (hook `Message` + `SessionMessage.ID` ->
- *   `{ seq, message }`), which is a later stage per `docs/plans/vcc-compiler.md`.
+ *   `{ seq, message }`), which is a later stage per `archive/plans/vcc-compiler.md`.
  * - `elideCheckpointInjectedBodies` is retained verbatim but stays inert
  *   unless `config.elideCheckpointInjectedBodies === true`; the OpenCode
  *   consumer leaves it off (REUSE.md rejects it — the preamble here is
@@ -26,7 +26,7 @@
  * Note on style: this file keeps upstream's semicolons verbatim for
  * line-for-line comparability with the MIT source (present and future
  * re-sync). This coincides with the repo's own `.mjs` style
- * (`compiler/selftest.mjs`, `scripts/verify-evidence.mjs` both use
+ * (`compiler/selftest.mjs`, `scripts/check-engine-sync.mjs` both use
  * semicolons), so there is no style conflict in practice.
  *
  * Everything below is deterministic and offline: same nodes + config always

@@ -6,7 +6,7 @@
  * Implied dependency of the recall/search stages: `recall.mjs` imports
  * `sessionEventAt` / `sessionEvents` from here, exactly as upstream
  * `recall.js` imports them from `./session-compat.js`. Carried as its own
- * file (see the `docs/plans/vcc-compiler.md` module map) rather than
+ * file (see the `archive/plans/vcc-compiler.md` module map) rather than
  * inlined, so the recall port stays line-for-line verbatim. Duck-typed accessors
  * (`eventAt`/`snapshotEvents`) with legacy `events`-array fallback — no
  * DSH imports, so the OpenCode adapter can supply any session-shaped value.

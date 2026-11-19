@@ -21,20 +21,18 @@ is also the document npm renders on the package page.
 
 ## Layout
 
-- `vcc-plugin/` — the product: `vcc-compaction@0.1.0` (Effect-direct hook + pure adapter + vendored engine + unit tests). Start here: [`vcc-plugin/README.md`](vcc-plugin/README.md).
+- `vcc-plugin/` — the product: `opencode-vcc-compaction@0.1.0` (Effect-direct hook + pure adapter + vendored engine + unit tests). Start here: [`vcc-plugin/README.md`](vcc-plugin/README.md).
 - `compiler/` — deterministic reference engine (stages 1–4, verbatim port, dependency-free). Source of truth; vendored byte-identical into `vcc-plugin/engine/` (sync-enforced).
-- `.github/workflows/` — CI: typechecks, selftests, evidence gate, engine-sync, markdown lint; tag pushes publish to npm and cut GitHub releases.
-- `probe-plugin/` + `probe-project/` + `probe-results/` — the throwaway probe that decided everything (Branch A/B live runs, committed JSONL evidence). History, not the foundation — do not extend.
-- `docs/research/` — verdicts: [`compaction-probe-verdict.md`](docs/research/compaction-probe-verdict.md) (closes `PROBE.md`), [`vcc-plugin-live-verdict.md`](docs/research/vcc-plugin-live-verdict.md) (plugin live PASS).
-- `docs/plans/` — build records for the compiler port and the plugin.
-- `demo-project/` — scratch harness registering `../vcc-plugin` (never run from a real project).
-- `docs/archive/` — the original probe spec (`PROBE.md`) and reuse inventory (`REUSE.md`): closed, kept as record.
+- `.github/workflows/` — CI: typecheck, selftests, engine-sync, markdown lint; tag pushes publish to npm and cut GitHub releases.
+- `examples/` — scratch project registering `../vcc-plugin` with a cheap `compaction.buffer` trigger for live runs (never run from a real project).
+- `docs/research/` — verdicts: [`compaction-probe-verdict.md`](docs/research/compaction-probe-verdict.md), [`vcc-plugin-live-verdict.md`](docs/research/vcc-plugin-live-verdict.md) (plugin live PASS).
+- `archive/` — frozen history, not maintained: the closed probe harness (`probe-plugin/`, `probe-project/`, `probe-results/` evidence), the deciding spec (`PROBE.md`), the reuse inventory (`REUSE.md`), and the port plans (`plans/`). Do not extend.
 - `AGENTS.md` — contributor contract for AI agents.
 
 ## Install
 
 ```bash
-opencode plugin add vcc-compaction
+opencode plugin add opencode-vcc-compaction
 ```
 
 Or declare it in `opencode.json`:
@@ -42,7 +40,7 @@ Or declare it in `opencode.json`:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["vcc-compaction"]
+  "plugin": ["opencode-vcc-compaction"]
 }
 ```
 
@@ -53,7 +51,7 @@ With options:
 {
   "plugins": [
     {
-      "package": "vcc-compaction",
+      "package": "opencode-vcc-compaction",
       "options": { "maxTokens": 8192, "keepMessages": 6 },
     },
   ],
@@ -67,11 +65,10 @@ Full option table in [`vcc-plugin/README.md`](vcc-plugin/README.md).
 ## Verify
 
 ```sh
-node --check probe-plugin/index.ts && node --check vcc-plugin/index.ts
+node --check vcc-plugin/index.ts
 node compiler/selftest.mjs
 node vcc-plugin/selftest.mjs
 node scripts/check-engine-sync.mjs
-node scripts/verify-evidence.mjs
 ```
 
 Live compaction runs only with explicit approval + explicit `--model`, from a scratch project, never a real one.

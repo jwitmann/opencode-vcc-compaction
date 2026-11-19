@@ -1,5 +1,10 @@
 # Verdict: compaction `result` override (Branch A/B live probe)
 
+> Relocated 2026-11-19: the probe harness and evidence cited below now
+> live frozen under `archive/` (`archive/probe-project/`,
+> `archive/probe-plugin/`, `archive/probe-results/`). Paths in this
+> dated record are pre-move; the verdict is unchanged.
+
 **Question** (`PROBE.md`): can `session.hook("compaction")` set `event.result`
 to a deterministic VCC-style summary the host persists **without calling any
 model**? PASS = VCC ports as a true LLM-free engine.

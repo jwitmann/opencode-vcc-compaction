@@ -1,58 +1,50 @@
 # AGENTS.md — opencode-vcc-compaction
 
-Context file for AI agents working on opencode-vcc-compaction: the port of
+Product repo for `opencode-vcc-compaction`: deterministic LLM-free
+compaction for OpenCode V2 — port of
 [tingfeng-droid/dsh-compaction-vcc](https://github.com/tingfeng-droid/dsh-compaction-vcc)
-(LLM-free deterministic compaction for DSH, MIT) to OpenCode V2 — proven live
-on host v2.3.2 (see `docs/research/vcc-plugin-live-verdict.md`). The product
-is `vcc-plugin/`; `probe-plugin/` + `probe-results/` are closed evidence.
-
-## Restart protocol
-
-1. Read `docs/archive/PROBE.md`, then `docs/archive/REUSE.md`.
-2. Record `opencode --version` + resolved `@opencode/plugin` version with every result.
-3. Resolutions live here: verdicts and durable findings go under
-   `docs/research/` (per owner decision 2026-11-19, probe resolutions
-   do NOT fold into `operator-context-management/docs/`).
+(MIT), proven live on host v2.3.2 (see
+`docs/research/vcc-plugin-live-verdict.md`). This is the product repo,
+not the probe workspace: the closed probe harness is frozen under
+`archive/` and is not maintained.
 
 ## Project layout
 
-- `docs/archive/PROBE.md` — the one probe that decides everything (compaction `result` override).
-- `docs/archive/REUSE.md` — lift-verbatim vs. mechanism-swap vs. reject inventory.
-- `probe-plugin/` — throwaway OpenCode V2 plugin (host-only + `@opencode/plugin`;
-  must not depend on Operator Memory).
-- `probe-project/` — scratch Brain-free project (own `opencode.jsonc` registering
-  `../probe-plugin`). Always run probes with cwd here.
-- `probe-results/` — JSONL observations, one file per probe. Committed evidence.
-- `vendor/` — reference checkout notes for offline reading. Do not `npm install`
-  DSH host deps here.
-- `compiler/` — deterministic reference engine (stages 1–4, verbatim port,
-  dependency-free; run `node compiler/selftest.mjs`).
-- `vcc-plugin/` — the product (`vcc-compaction@0.1.0`, Effect-direct hook +
-  pure adapter + vendored `engine/`; run `node --check vcc-plugin/index.ts`
-  and `node vcc-plugin/selftest.mjs`).
-- `demo-project/` — scratch harness registering `../vcc-plugin` with a cheap
-  `compaction.buffer` trigger. Brain-free like `probe-project/`.
-- `docs/` — durable documents (`research/` verdicts, `plans/` build records).
-- `scripts/verify-evidence.mjs` — evidence gate (configs parse + JSONL lines
-  version-tagged).
+- `vcc-plugin/` — the npm package (`opencode-vcc-compaction@0.1.0`:
+  Effect-direct hook + pure adapter + vendored `engine/`; run
+  `node --check vcc-plugin/index.ts` and `node vcc-plugin/selftest.mjs`).
+- `compiler/` — deterministic reference engine (stages 1–4, verbatim
+  port, dependency-free; run `node compiler/selftest.mjs`). Source of
+  truth; vendored byte-identical into `vcc-plugin/engine/`
+  (sync-enforced, never hand-edit `engine/`).
+- `examples/` — scratch project registering `../vcc-plugin` with a cheap
+  `compaction.buffer` trigger. Brain-free; always run live probes with
+  cwd here.
+- `scripts/` — `release.sh` / `changelog.sh` (tag-triggered publish flow),
+  `check-engine-sync.mjs` (vendoring gate).
+- `docs/research/` — verdicts grounding the release claims.
+- `archive/` — frozen history: the closed probe harness + JSONL evidence,
+  the deciding spec (`PROBE.md`), the reuse inventory (`REUSE.md`), the
+  port plans (`plans/`). Do not extend, do not edit.
+- `docs/` — working documents (`research/` verdicts, `NOTES.md` parking
+  lot). Root files stay the working contracts.
 
 ## Rules
 
 ### Do
 
-- Keep `probe-project/` Brain-free: no `.operator/` inside it; run probes with
-  cwd `probe-project/`.
-- Tag every result with `opencodeVersion` + `pluginVersion`.
+- Keep `examples/` Brain-free: no `.operator/` inside it; run live probes
+  with cwd `examples/`.
+- Tag every live result with `opencodeVersion` + `pluginVersion`.
 - Commit locally when a logical unit is complete and the gate passes.
 
 ### Don't
 
 - **Never push to remote.** Pushing is a deliberate user action, never an agent action.
 - Never run window-filling sessions for threshold tests without explicit user
-  approval (disproportionately expensive — see `docs/archive/PROBE.md` Do-not).
-- Never let `probe-plugin/` depend on Operator Memory or touch `~/.operator/state/`.
-- Never commit this workspace into `operator-memory` (`feat/context-management`
-  stays `feat(core)` + `feat(opencode-v2)` only, per `README.md`).
+  approval (disproportionately expensive).
+- Never let anything under `archive/` back into the build (no imports, no
+  runnable wiring, no dependency on Operator Memory).
 - Act on side findings mid-task — park a one-liner in `docs/NOTES.md`
   (dated heading, no analysis), list parked notes in the final summary,
   delete the entry on resolve. The current task's scope does not expand.
@@ -62,20 +54,22 @@ is `vcc-plugin/`; `probe-plugin/` + `probe-results/` are closed evidence.
 
 ### Ask first
 
-- Adding a dependency, changing the evidence schema, or rewording
-  `docs/archive/PROBE.md`'s deciding question.
+- Adding a dependency, renaming the package, or changing the checkpoint
+  marker format (persisted in user summaries).
+- Republishing history: editing anything under `archive/`, or rewording a
+  `docs/research/` verdict beyond a dated correction note.
 - Anything in Don't that the task seems to require.
 
 ## Verification
 
-- Plan compliance: re-read `docs/archive/PROBE.md`/`docs/archive/REUSE.md` before declaring a task
-  done and confirm every requirement was met; fix gaps first.
-- `commands.typecheck`: `node --check probe-plugin/index.ts && node --check vcc-plugin/index.ts`.
-- `commands.test`: `node scripts/verify-evidence.mjs`
-  (JSONC configs parse + every JSONL line version-tagged;
-  proven fail-on-mutation 2026-11-19) plus `node compiler/selftest.mjs`,
-  `node vcc-plugin/selftest.mjs`, and `node scripts/check-engine-sync.mjs`
-  for engine/adapter changes.
-- Evidence standard is `probe-results/*.jsonl` lines (versions on every line)
-  plus static source refs (`file:line`). Gate enforcement is `require_review`
-  plus the two runnable gates — see `.dev-framework/hardening.md`.
+- `commands.typecheck`: `node --check vcc-plugin/index.ts`.
+- `commands.test`: `node compiler/selftest.mjs` plus
+  `node vcc-plugin/selftest.mjs`, plus
+  `node scripts/check-engine-sync.mjs` for engine/adapter changes.
+- Docs-only changes: `markdownlint-cli2` over the tree (config:
+  `.markdownlint-cli2.jsonc`); a PASS before the last edit is stale.
+- Live compaction runs only with explicit approval + explicit `--model`,
+  from the scratch project, never a real one.
+- Plan compliance: re-read this file before declaring a task done and
+  confirm every requirement was met; fix gaps first. Gate enforcement is
+  `require_review` plus the runnable gates — see `.dev-framework/hardening.md`.

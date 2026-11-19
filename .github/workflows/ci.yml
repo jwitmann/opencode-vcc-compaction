@@ -3,7 +3,7 @@ name: CI
 # Ported from opencode-dev-framework's ci.yml, adapted: this repo has no
 # root package.json and no build, so validation runs the gate commands
 # directly and the npm publish runs from ./vcc-plugin. First tag push
-# claims the `vcc-compaction` name (manual publish never worked in the
+# claims the `opencode-vcc-compaction` name (manual publish never worked in the
 # owner's setup); afterwards every tag push publishes that version.
 # Requires the `NPM_TOKEN` secret (granular Read+write token, same recipe
 # as opencode-dev-framework).
@@ -30,11 +30,10 @@ jobs:
         with:
           node-version: 26
 
-      - run: node --check probe-plugin/index.ts && node --check vcc-plugin/index.ts
+      - run: node --check vcc-plugin/index.ts
       - run: node compiler/selftest.mjs
       - run: node vcc-plugin/selftest.mjs
       - run: node scripts/check-engine-sync.mjs
-      - run: node scripts/verify-evidence.mjs
       - run: npx --yes markdownlint-cli2 "**/*.md"
 
   publish:

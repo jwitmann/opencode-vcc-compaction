@@ -15,7 +15,7 @@
  * - DSH session-shape vocabulary (`eventAt`/`snapshotEvents`/`events`,
  *   `deriveEventMessage`, `tool/result` event types) is carried verbatim;
  *   the OpenCode adapter supplies the session-shaped value later
- *   (per `docs/plans/vcc-compiler.md` handoff).
+ *   (per `archive/plans/vcc-compiler.md` handoff).
  *
  * Upstream semicolons kept verbatim, per the repo `.mjs` convention
  * (see `compiler/compile.mjs` header).

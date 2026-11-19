@@ -2,7 +2,7 @@ import { Plugin } from "@opencode/plugin/effect"
 import { Effect } from "effect"
 import { buildConfig, compileCompaction } from "./adapter.mjs"
 
-// vcc-compaction: deterministic LLM-free compaction summaries.
+// opencode-vcc-compaction: deterministic LLM-free compaction summaries.
 //
 // The hook adapts the request messages through adapter.mjs (pure offline
 // mapping + the VCC reference compiler) and sets event.result so the host
@@ -14,7 +14,7 @@ import { buildConfig, compileCompaction } from "./adapter.mjs"
 // from the start, so no convert-to-Effect task ever arises.
 
 export default Plugin.define({
-  id: "vcc-compaction",
+  id: "opencode-vcc-compaction",
   effect: Effect.fn(function* (ctx) {
     const config = buildConfig(ctx.options)
 
@@ -24,7 +24,7 @@ export default Plugin.define({
         try {
           outcome = compileCompaction(event.messages, config)
         } catch (error) {
-          console.warn("[vcc-compaction] adapter failed; leaving result unset:", error)
+          console.warn("[opencode-vcc-compaction] adapter failed; leaving result unset:", error)
           return
         }
         if (outcome === undefined) return

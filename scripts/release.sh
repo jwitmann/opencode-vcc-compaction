@@ -41,11 +41,10 @@ if [ -n "$(git status --porcelain)" ]; then
 fi
 
 echo "==> Running validation..."
-node --check probe-plugin/index.ts && node --check vcc-plugin/index.ts
+node --check vcc-plugin/index.ts
 node compiler/selftest.mjs
 node vcc-plugin/selftest.mjs
 node scripts/check-engine-sync.mjs
-node scripts/verify-evidence.mjs
 npx --yes markdownlint-cli2 "**/*.md"
 
 echo ""

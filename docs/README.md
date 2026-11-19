@@ -1,20 +1,17 @@
 # docs
 
 Durable project documents, organized by type (mirrors the
-`opencode-dev-framework/docs` layout: `user/`, `plans/`, `dev/`).
+`opencode-dev-framework/docs` layout).
 
 - `NOTES.md` — parking lot for side findings (dated headings, one line
   per finding, deleted on resolve). Empty is the healthy steady state.
-- `research/` — investigation results: probe verdicts, ecosystem scans,
-  static-verification notes. Each names its evidence
-  (`probe-results/*.jsonl` lines) and base versions.
-- `archive/` — closed specs kept as record: the deciding probe question
-  (`PROBE.md`) and the reuse inventory (`REUSE.md`).
-- `plans/` — execution plans for follow-up work (created on demand).
-- `user/` — operator-facing notes: how to run a probe, read evidence
-  (created on demand).
-- `dev/` — contributor internals beyond `AGENTS.md` (created on demand).
+- `research/` — verdicts grounding the release claims
+  (`compaction-probe-verdict.md`, `vcc-plugin-live-verdict.md`). Each
+  names its evidence (frozen JSONL lines under `archive/probe-results/`)
+  and base versions.
+
+Closed material lives frozen at the repo root under `archive/` (probe
+harness + evidence, `PROBE.md`, `REUSE.md`, port plans) — not here.
 
 Working contracts stay at the root on purpose (`AGENTS.md`, `README.md`
-— the project entry points). Settled specs live in `archive/`; the first
-verdict document closes `archive/PROBE.md`'s question.
+— the project entry points).

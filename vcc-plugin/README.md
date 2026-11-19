@@ -1,4 +1,4 @@
-# vcc-compaction — deterministic LLM-free compaction for OpenCode V2
+# opencode-vcc-compaction — deterministic LLM-free compaction for OpenCode V2
 
 **Your long session gets summarized by a model. The summary is invented
 text — and the model then reasons from it as if it were fact.**
@@ -15,7 +15,7 @@ Port of [`dsh-compaction-vcc`](https://github.com/tingfeng-droid/dsh-compaction-
 directly against `@opencode/plugin/effect` (canonical runtime), so no
 convert-to-Effect task ever arises. The VCC reference engine is vendored
 byte-identical from `../compiler/` into `./engine/` (sync-enforced).
-Version: `vcc-compaction@0.1.0`.
+Version: `opencode-vcc-compaction@0.1.0`.
 
 ## How it works
 
@@ -44,7 +44,7 @@ This is an automatically generated checkpoint condensing an earlier span of the 
 
 RECALL: append-only log — nothing is lost. `recall` restores original content: type "seq", id "3-7"; "result", id "3"; "checkpoint", id "1" (`[checkpoint N]` = dropped). `search` finds by keyword.
 
-[vcc-compaction vcc-compiler-debug-2: 7 messages -> 8 entries]
+[opencode-vcc-compaction vcc-compiler-debug-2: 7 messages -> 8 entries]
 
 [user]
 please fix the login bug — sessions expire after 60 seconds
@@ -144,7 +144,7 @@ not the input.
 Requires OpenCode `v2.x` (live-verified on `v2.3.2`).
 
 ```bash
-opencode plugin add vcc-compaction
+opencode plugin add opencode-vcc-compaction
 ```
 
 Or declare it in `opencode.json`:
@@ -152,7 +152,7 @@ Or declare it in `opencode.json`:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["vcc-compaction"]
+  "plugin": ["opencode-vcc-compaction"]
 }
 ```
 
@@ -163,7 +163,7 @@ With options (all optional; defaults in Configuration below):
 {
   "plugins": [
     {
-      "package": "vcc-compaction",
+      "package": "opencode-vcc-compaction",
       "options": { "maxTokens": 8192, "keepMessages": 6 },
     },
   ],
@@ -184,7 +184,7 @@ Optional `opencode.jsonc` addition — auto-compaction threshold:
 {
   // Fire auto-compaction once history passes (window − buffer).
   // "99%" (fire at ~1% of window) is the demo-harness trigger for cheap
-  // live runs (see ../demo-project/opencode.jsonc); the override mechanism
+  // live runs (see ../examples/opencode.jsonc); the override mechanism
   // is threshold-independent, so leave the default in production.
   "compaction": { "buffer": "99%" },
 }
@@ -238,7 +238,7 @@ How the budgets behave:
 sees the request window. Every checkpoint heads with a short RECALL guide
 telling the model how to recover elided content; OpenCode-native recall
 tools (resolving message/part IDs against the session log) are
-follow-up work, recorded in [the plan](../docs/plans/vcc-plugin.md).
+follow-up work, recorded in [the plan](../archive/plans/vcc-plugin.md).
 v0.1.0 ships the engine: deterministic summary + keep-tail, with every
 cut marked and pointing at its source.
 
