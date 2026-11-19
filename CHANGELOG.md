@@ -7,6 +7,24 @@ Single source: the tag-triggered workflow publishes each version's
 section as the GitHub release notes, so this file and the release
 page never diverge.
 
+## [v0.3.0] - 2026-11-19
+
+### Features
+
+- RPC event-push reply bridge with TUI companion; real-repo workspace ([`9d751c9`](https://github.com/jwitmann/opencode-vcc-compaction/commit/9d751c9d0cecc87c075e17059632b4064d4a7ddc))
+
+### Fixes
+
+- wake-free command replies via synthetic resume:false ([`e1450ad`](https://github.com/jwitmann/opencode-vcc-compaction/commit/e1450ad1ff88845158d21fc28d65de5fb4e46074))
+
+### Documentation
+
+- record TUI live proof; sync release script to workspace gates ([`5515776`](https://github.com/jwitmann/opencode-vcc-compaction/commit/55157763e134a7aacb18c0d0ddc65d33cdfee249))
+
+### Other
+
+- wake-free command replies via synthetic resume:false ([`05d7ba5`](https://github.com/jwitmann/opencode-vcc-compaction/commit/05d7ba5c779f4983093cc054af6e52f19473ef00))
+
 ## [v0.2.0] - 2026-11-19
 
 ### Features
