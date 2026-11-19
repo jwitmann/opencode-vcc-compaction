@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Deterministic LLM-free compaction summaries for OpenCode V2 (VCC reference engine, Effect-direct hook).",
   "license": "MIT",
-  "author": "Calvados <jerome_witmann@witmanco.net>",
+  "author": "jwitmann <jerome_witmann@witmanco.net>",
   "homepage": "https://github.com/jwitmann/opencode-vcc-compaction#readme",
   "repository": {
     "type": "git",
