@@ -2,9 +2,35 @@
 
 <!-- markdownlint-disable MD024 --><!-- repeated bucket headings -->
 
-Generated from conventional commits (`scripts/changelog.sh`).
-Single source: CI publishes each version's section as the GitHub
-release notes, so this file and the release page never diverge.
+Generated from commit subjects (`scripts/changelog.sh`).
+Single source: the tag-triggered workflow publishes each version's
+section as the GitHub release notes, so this file and the release
+page never diverge.
+
+## [v0.2.0] - 2026-11-19
+
+### Features
+
+- snapshot store for vcc- commands (Phase 1) ([`74c268c`](https://github.com/jwitmann/opencode-vcc-compaction/commit/74c268c4b78c7ec4557666e9a5291b3ec01246b0))
+- wire /vcc-recall server command (Phase 2) ([`2f602e6`](https://github.com/jwitmann/opencode-vcc-compaction/commit/2f602e6153a02531824e48cce8340a101fc1871f))
+- wire /vcc-search + /vcc-status server commands (Phase 3) ([`63f2bf4`](https://github.com/jwitmann/opencode-vcc-compaction/commit/63f2bf47af2ceed5be3a8844927503eeb0b6ea20))
+
+### Fixes
+
+- Effect v4 compat (catch/catchCause) + repair vcc-status chain ([`526f19a`](https://github.com/jwitmann/opencode-vcc-compaction/commit/526f19a2ceca0773dcc07c535b36827ae7774e24))
+
+### Documentation
+
+- curate v0.1.0 changelog into ODF buckets, adopt conventional commits ([`e364566`](https://github.com/jwitmann/opencode-vcc-compaction/commit/e364566bbab7ac4f1b334d4cd43389b1aa1cb8d9))
+- plan vcc- commands for 0.2.0 (snapshot-via-hook) ([`560b563`](https://github.com/jwitmann/opencode-vcc-compaction/commit/560b563a4af5e144dc6fc356ac7c26c2bc1a35e8))
+- document vcc- commands for 0.2.0 (recall/search/status, snapshot-via-hook) ([`0f0a6ab`](https://github.com/jwitmann/opencode-vcc-compaction/commit/0f0a6abdf628fa3afaeb2512a8a9c6a3cae82a3f))
+- live proof verdict for vcc- commands (0.2.0 code) ([`2c2e27a`](https://github.com/jwitmann/opencode-vcc-compaction/commit/2c2e27ad8d97b56449d5cc09aef14b8409b178aa))
+
+### Other
+
+- fix validation comment (engine-sync, not evidence gate) ([`a3234c4`](https://github.com/jwitmann/opencode-vcc-compaction/commit/a3234c4789a149e98466d2042dfad96667870889))
+- push only the release tag, fix validation comment ([`f02a07a`](https://github.com/jwitmann/opencode-vcc-compaction/commit/f02a07a23a515ce3ed29219fff97c044056b911c))
+- generate full-history v0.1.0 section from commit subjects ([`ee32ed6`](https://github.com/jwitmann/opencode-vcc-compaction/commit/ee32ed6bef1622f2044e3c5b36a8039e87b0a7b0))
 
 ## [v0.1.0] - 2026-11-19
 
