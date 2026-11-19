@@ -39,7 +39,7 @@ export default Plugin.define({
     const seen = new Map<string, { version: number; count: number; lastID: string | undefined }>()
 
     const remember = (sessionID: unknown, messages: unknown) =>
-      Effect.catchAll(
+      Effect.catch(
         Effect.flatMap(
           Effect.sync(() => {
             if (typeof sessionID !== "string" || sessionID === "") {
@@ -52,7 +52,7 @@ export default Plugin.define({
             if (snap === null) return Effect.void
             const prev = seen.get(sessionID as string)
             if (!snapshotNeedsWrite(prev, snap)) return Effect.void
-            return Effect.catchAll(
+            return Effect.catch(
               Effect.flatMap(
                 ctx.storage.set(`${SNAPSHOT_KEY_PREFIX}${sessionID}`, {
                   version: snap.version,
@@ -118,7 +118,7 @@ export default Plugin.define({
           name: "vcc-recall",
           description: "Restore exact original content from this session by (seq N), result, or checkpoint reference.",
           execute: (input) =>
-            Effect.catchAllCause(
+            Effect.catchCause(
               Effect.flatMap(
                 Effect.sync(() => parseRecallArgs((input.prompt as { text?: unknown })?.text ?? "")),
                 (parsed) => {
@@ -130,7 +130,7 @@ export default Plugin.define({
                     })
                   }
                   return Effect.flatMap(
-                    Effect.catchAll(
+                    Effect.catch(
                       ctx.storage.get(`${SNAPSHOT_KEY_PREFIX}${input.sessionID}`),
                       (error) =>
                         Effect.sync(() => {
@@ -179,7 +179,7 @@ export default Plugin.define({
           name: "vcc-search",
           description: "Search this session's history by keyword or regex; returns (seq N) hits for /vcc-recall.",
           execute: (input) =>
-            Effect.catchAllCause(
+            Effect.catchCause(
               Effect.flatMap(
                 Effect.sync(() => parseSearchArgs((input.prompt as { text?: unknown })?.text ?? "")),
                 (parsed) => {
@@ -191,7 +191,7 @@ export default Plugin.define({
                     })
                   }
                   return Effect.flatMap(
-                    Effect.catchAll(
+                    Effect.catch(
                       ctx.storage.get(`${SNAPSHOT_KEY_PREFIX}${input.sessionID}`),
                       (error) =>
                         Effect.sync(() => {
@@ -241,38 +241,36 @@ export default Plugin.define({
           name: "vcc-status",
           description: "Show opencode-vcc-compaction engine revision, config, and snapshot freshness.",
           execute: (input) =>
-            Effect.catchAllCause(
+            Effect.catchCause(
               Effect.flatMap(
-                Effect.flatMap(
-                  Effect.catchAll(
-                    ctx.storage.get(`${SNAPSHOT_KEY_PREFIX}${input.sessionID}`),
-                    (error) =>
-                      Effect.sync(() => {
-                        console.warn("[opencode-vcc-compaction] vcc-status: snapshot read failed:", error)
-                        return { __vccReadFailed: true as const }
-                      }),
-                  ),
-                  (stored) => {
-                    const classified = classifySnapshotStore(stored as never)
-                    if (classified.status === "failed") {
-                      return ctx.session.prompt({
-                        sessionID: input.sessionID,
-                        text: "**/vcc-status** — snapshot read failed, try again in a moment",
-                        delivery: input.delivery,
-                      })
-                    }
+                Effect.catch(
+                  ctx.storage.get(`${SNAPSHOT_KEY_PREFIX}${input.sessionID}`),
+                  (error) =>
+                    Effect.sync(() => {
+                      console.warn("[opencode-vcc-compaction] vcc-status: snapshot read failed:", error)
+                      return { __vccReadFailed: true as const }
+                    }),
+                ),
+                (stored) => {
+                  const classified = classifySnapshotStore(stored as never)
+                  if (classified.status === "failed") {
                     return ctx.session.prompt({
                       sessionID: input.sessionID,
-                      text: formatStatusText(
-                        classified.status === "ready" ? classified.stored as never : undefined,
-                        config as never,
-                        COMPILER_REV as string,
-                        Date.now(),
-                      ),
+                      text: "**/vcc-status** — snapshot read failed, try again in a moment",
                       delivery: input.delivery,
                     })
-                  },
-                ),
+                  }
+                  return ctx.session.prompt({
+                    sessionID: input.sessionID,
+                    text: formatStatusText(
+                      classified.status === "ready" ? classified.stored as never : undefined,
+                      config as never,
+                      COMPILER_REV as string,
+                      Date.now(),
+                    ),
+                    delivery: input.delivery,
+                  })
+                },
               ),
               (cause) =>
                 Effect.sync(() => {
