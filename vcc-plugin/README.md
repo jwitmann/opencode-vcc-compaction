@@ -15,7 +15,7 @@ Port of [`dsh-compaction-vcc`](https://github.com/tingfeng-droid/dsh-compaction-
 directly against `@opencode/plugin/effect` (canonical runtime), so no
 convert-to-Effect task ever arises. The VCC reference engine is vendored
 byte-identical from `../compiler/` into `./engine/` (sync-enforced).
-Version: `opencode-vcc-compaction@0.2.0`.
+Version: `opencode-vcc-compaction@0.3.0`.
 
 ## How it works
 
@@ -341,9 +341,7 @@ from a scratch project, never a real one.
 
 ## Status and limits
 
-- v0.3.0 (in tree, unreleased — package.json still reads 0.2.0
-  until `scripts/release.sh minor` runs) ships the hook + three
-  server slash commands
+- v0.3.0 ships the hook + three server slash commands
   (`/vcc-recall`, `/vcc-search`, `/vcc-status`) plus the `./tui`
   companion that renders their replies quietly. `(seq N)`
   pointers are 1-based ordinals over the compiled messages (skipped
