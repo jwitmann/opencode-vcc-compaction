@@ -47,6 +47,18 @@ Because the adapter imports the engine via the relative path
 `../compiler/*`, the plugin must be installed as this directory inside
 a full repo checkout — copying `vcc-plugin/` out alone will break.
 
+Optional `opencode.jsonc` addition — auto-compaction threshold:
+
+```jsonc
+{
+  // Fire auto-compaction once history passes (window − buffer).
+  // "99%" (fire at ~1% of window) is the demo-harness trigger for cheap
+  // live runs (see ../demo-project/opencode.jsonc); the override mechanism
+  // is threshold-independent, so leave the default in production.
+  "compaction": { "buffer": "99%" },
+}
+```
+
 Options are the engine budgets plus behavior (all optional, upstream
 defaults shown — see `adapter.mjs` `DEFAULT_PLUGIN_CONFIG`):
 

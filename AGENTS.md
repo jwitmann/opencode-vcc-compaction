@@ -1,8 +1,10 @@
 # AGENTS.md — opencode-vcc-compaction
 
-Context file for AI agents working on the VCC port investigation: can
+Context file for AI agents working on opencode-vcc-compaction: the port of
 [tingfeng-droid/dsh-compaction-vcc](https://github.com/tingfeng-droid/dsh-compaction-vcc)
-(LLM-free deterministic compaction for DSH, MIT) be ported to OpenCode V2?
+(LLM-free deterministic compaction for DSH, MIT) to OpenCode V2 — proven live
+on host v2.3.2 (see `docs/research/vcc-plugin-live-verdict.md`). The product
+is `vcc-plugin/`; `probe-plugin/` + `probe-results/` are closed evidence.
 
 ## Restart protocol
 
@@ -23,6 +25,16 @@ Context file for AI agents working on the VCC port investigation: can
 - `probe-results/` — JSONL observations, one file per probe. Committed evidence.
 - `vendor/` — reference checkout notes for offline reading. Do not `npm install`
   DSH host deps here.
+- `compiler/` — deterministic reference engine (stages 1–4, verbatim port,
+  dependency-free; run `node compiler/selftest.mjs`).
+- `vcc-plugin/` — the product (`vcc-compaction@0.1.0`, Effect-direct hook +
+  pure adapter; run `node --check vcc-plugin/index.ts` and
+  `node vcc-plugin/selftest.mjs`).
+- `demo-project/` — scratch harness registering `../vcc-plugin` with a cheap
+  `compaction.buffer` trigger. Brain-free like `probe-project/`.
+- `docs/` — durable documents (`research/` verdicts, `plans/` build records).
+- `scripts/verify-evidence.mjs` — evidence gate (configs parse + JSONL lines
+  version-tagged).
 
 ## Rules
 

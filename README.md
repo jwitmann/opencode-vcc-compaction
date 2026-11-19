@@ -28,8 +28,9 @@ Not on npm yet (blocked on bundling `../compiler/*` into the package — see lim
       "options": { "maxTokens": 8192, "keepMessages": 6 },
     },
   ],
+  // Optional: "compaction": { "buffer": "99%" } fires auto-compaction at
+  // ~1% of window (demo-harness trigger; leave the default in production).
 }
-```
 
 Full option table in [`vcc-plugin/README.md`](vcc-plugin/README.md).
 
