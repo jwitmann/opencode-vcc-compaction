@@ -41,9 +41,23 @@ Context file for AI agents working on the VCC port investigation: can
 - Never let `probe-plugin/` depend on Operator Memory or touch `~/.operator/state/`.
 - Never commit this workspace into `operator-memory` (`feat/context-management`
   stays `feat(core)` + `feat(opencode-v2)` only, per `README.md`).
+- Act on side findings mid-task — park a one-liner in `docs/NOTES.md`
+  (dated heading, no analysis), list parked notes in the final summary,
+  delete the entry on resolve. The current task's scope does not expand.
+- Commit review artifacts — findings live in gitignored `review.md` or
+  parked in `docs/NOTES.md`; commits carry implementation, evidence,
+  and docs only.
+
+### Ask first
+
+- Adding a dependency, changing the evidence schema, or rewording
+  `PROBE.md`'s deciding question.
+- Anything in Don't that the task seems to require.
 
 ## Verification
 
+- Plan compliance: re-read `PROBE.md`/`REUSE.md` before declaring a task
+  done and confirm every requirement was met; fix gaps first.
 - `commands.typecheck`: `node --check probe-plugin/index.ts`.
 - `commands.test`: `node scripts/verify-evidence.mjs`
   (JSONC configs parse + every JSONL line version-tagged;

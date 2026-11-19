@@ -3,6 +3,8 @@
 Durable project documents, organized by type (mirrors the
 `opencode-dev-framework/docs` layout: `user/`, `plans/`, `dev/`).
 
+- `NOTES.md` — parking lot for side findings (dated headings, one line
+  per finding, deleted on resolve). Empty is the healthy steady state.
 - `research/` — investigation results: probe verdicts, ecosystem scans,
   static-verification notes. Each names its evidence
   (`probe-results/*.jsonl` lines) and base versions.
