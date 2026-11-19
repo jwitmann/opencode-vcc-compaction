@@ -89,31 +89,52 @@ export function projectResultValue(result) {
 }
 
 /**
+ * Stringify a tool-call input the same way everywhere (adapter + snapshot).
+ * Absent input yields "" (never the literal "null").
+ * @param input - raw tool-call input (string, JSON value, or absent).
+ * @returns stringified arguments.
+ */
+export function stringifyToolInput(input) {
+  if (input === undefined || input === null) return "";
+  try {
+    return typeof input === "string" ? input : JSON.stringify(input) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Classify a media part as image/document label (bytes never stored).
+ * Accepts OpenCode parts (`part.media.*`) and cleaned snapshot parts
+ * (`part.mediaType`).
+ * @param part - media-ish part.
+ * @returns "image" or "document".
+ */
+export function mediaLabel(part) {
+  const mime = part?.media?.mediaType ?? part?.media?.mime ?? part?.mediaType ?? "";
+  return typeof mime === "string" && mime.startsWith("image/") ? "image" : "document";
+}
+
+/**
  * Map one content part to a compiler block, or null to drop it.
  * @param part - OpenCode content part.
  * @returns compiler block or null.
  */
 function toBlock(part) {
   if (part === null || part === undefined) return null;
+  if (typeof part.type !== "string") return null;
   switch (part.type) {
     case "text":
       return { type: "text", text: part.text ?? "" };
     case "reasoning":
       return { type: "reasoning", text: part.text ?? "" };
     case "tool-call": {
-      let args;
-      try {
-        args = typeof part.input === "string" ? part.input : JSON.stringify(part.input) ?? "";
-      } catch {
-        args = "";
-      }
-      return { type: "tool-call", id: part.id ?? "", name: part.name ?? "unknown", arguments: args };
+      return { type: "tool-call", id: part.id ?? "", name: part.name ?? "unknown", arguments: stringifyToolInput(part.input) };
     }
     case "tool-result":
       return { type: "text", text: projectResultValue(part.result) };
     case "media": {
-      const mime = part.media?.mediaType ?? part.media?.mime ?? "";
-      return { type: typeof mime === "string" && mime.startsWith("image/") ? "image" : "document" };
+      return { type: mediaLabel(part) };
     }
     case "compaction":
     case "effort":

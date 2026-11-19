@@ -1,10 +1,12 @@
 /**
- * vcc-plugin adapter self-test: mapping + keepID + config + compile.
+ * vcc-plugin adapter + snapshot self-test: mapping + keepID + config +
+ * compile, plus the snapshot store (clean/build/session-view + search).
  *
  * New code (no upstream original to capture from), so vectors assert
  * hand-derived behavior: every part type, tool-link pointers, checkpoint
  * synthesis, skip cases, missing-id abstain, config defaults/overrides,
- * summary shape, and double-run determinism.
+ * summary shape, snapshot seq alignment, recall/search over snapshots,
+ * and double-run determinism.
  *
  * Run: `node vcc-plugin/selftest.mjs` (exit 0 = pass, nonzero = fail).
  * No dependencies, no network, no model, no host.
@@ -17,6 +19,17 @@ import {
   projectResultValue,
   toNode,
 } from "./adapter.mjs";
+import {
+  SNAPSHOT_VERSION,
+  buildSnapshot,
+  makeSnapshotSession,
+  recallFromSnapshot,
+  searchSnapshot,
+  snapshotMessageToRecall,
+  snapshotNeedsWrite,
+} from "./snapshot.mjs";
+import { parseSeqSpec, recallSession, resolveRecallReference } from "./engine/recall.mjs";
+import { sessionEventAt, sessionEvents } from "./engine/session-compat.mjs";
 
 let failures = 0;
 /** Compare one vector, logging mismatch detail; counts failures. */
@@ -169,6 +182,52 @@ check(
   buildConfig({ noisePatterns: ["a+"] }).noisePatterns[0] instanceof RegExp,
   true,
 );
+
+const SNAP_MSGS = [
+  { id: "m1", role: "system", content: [{ type: "text", text: "rules" }] },
+  { id: "m2", role: "user", content: [{ type: "text", text: "please fix login" }] },
+  { id: "m3", role: "assistant", content: [{ type: "tool-call", id: "t1", name: "read", input: { file_path: "auth.js" } }] },
+  { id: "m4", role: "tool", content: [{ type: "tool-result", id: "t1", name: "read", result: { type: "json", value: { lines: 42 } } }] },
+  { id: "m5", role: "user", content: [{ type: "media", media: { mediaType: "image/png" } }] },
+  { id: "m6", role: "assistant", content: [{ type: "compaction", text: "prior summary" }] },
+];
+const snap = buildSnapshot(SNAP_MSGS);
+check("snapshot version", snap.version, SNAPSHOT_VERSION);
+check("snapshot drops system", snap.messages.some((m) => m.role === "system"), false);
+check("snapshot count", snap.count, 5);
+check("snapshot lastID", snap.lastID, "m6");
+check("snapshot media label-only", snap.messages[3], { id: "m5", role: "user", content: [{ type: "media", mediaType: "image/png" }] });
+check("snapshot growth guard same", snapshotNeedsWrite({ version: snap.version, count: snap.count, lastID: snap.lastID }, snap), false);
+check("snapshot growth guard grown", snapshotNeedsWrite({ version: snap.version, count: 4, lastID: "m5" }, snap), true);
+check("snapshot growth guard first", snapshotNeedsWrite(undefined, snap), true);
+check("snapshot growth guard version bump", snapshotNeedsWrite({ version: 0, count: snap.count, lastID: snap.lastID }, snap), true);
+
+const session = makeSnapshotSession(snap.messages);
+const events = sessionEvents(session);
+check("snapshot session event count (system dropped)", events.length, 5);
+check("snapshot seqs are 1-based contiguous", events.map((e) => e.seq), [1, 2, 3, 4, 5]);
+check("snapshot tool event typed for result refs", events[2].type, "tool/result");
+check("snapshot checkpoint typed", events[4].type, "user/message");
+check("snapshot eventAt", sessionEventAt(session, 2)?.seq, 2);
+const recalled = recallSession(session, parseSeqSpec("2-3").selections, { maxRecallTokens: 16000 });
+check("snapshot recall text has tool call + result", recalled.text.includes("[tool-call read]") && recalled.text.includes("42"), true);
+const resolved = resolveRecallReference(session, "result", "result 3");
+check("snapshot result ref resolves", resolved.selections, [{ start: 3, end: 3 }]);
+const searched = searchSnapshot(snap.messages, "login", { maxSearchHits: 50, maxRecallTokens: 16000 });
+check("snapshot search finds login", searched.totalMatches >= 1 && searched.text.includes("[seq 1"), true);
+const recallMsg = snapshotMessageToRecall(snap.messages[0]);
+check("snapshot recall projection role", recallMsg.role, "user");
+check("snapshot deterministic double-run", JSON.stringify(buildSnapshot(SNAP_MSGS)), JSON.stringify(buildSnapshot(SNAP_MSGS)));
+check("snapshot empty user shell kept (seq alignment)", buildSnapshot([{ role: "user", content: [] }]).count, 1);
+check("snapshot empty tool shell kept (seq alignment)", buildSnapshot([{ role: "tool", content: [] }]).count, 1);
+check("snapshot typeless part dropped", buildSnapshot([{ id: "x", role: "user", content: [{ foo: 1 }] }]).messages, [{ id: "x", role: "user", content: [] }]);
+check(
+  "snapshot missing tool input recalls empty (not null)",
+  recallFromSnapshot([{ role: "assistant", content: [{ type: "tool-call", id: "c", name: "bash" }] }], [{ start: 1, end: 1 }]).text.includes("null"),
+  false,
+);
+check("snapshot search defaults on empty config", searchSnapshot(snap.messages, "login").totalMatches >= 1, true);
+check("snapshot recall defaults on undefined budget", recallFromSnapshot(snap.messages, [{ start: 1, end: 1 }], undefined).recalled, 1);
 
 if (failures > 0) {
   console.log(`selftest FAILED: ${failures} case(s)`);

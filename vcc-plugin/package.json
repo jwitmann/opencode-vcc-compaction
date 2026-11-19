@@ -24,7 +24,7 @@
   ],
   "type": "module",
   "main": "./index.ts",
-  "files": ["index.ts", "adapter.mjs", "engine/", "README.md"],
+  "files": ["index.ts", "adapter.mjs", "snapshot.mjs", "engine/", "README.md"],
   "engines": {
     "node": ">=18"
   },
