@@ -55,7 +55,8 @@ TUI cannot reach it. Two options:
   toasts are global anyway). Costs: new export surface; TUI must
   be connected or the reply goes nowhere (non-TUI clients get
   silence — real degradation tradeoff vs chatter); delivery to
-  `listen` needs one live proof run.
+  `listen` needed one live proof run — done 2026-11-19: owner saw a
+  `/vcc-*` reply render as a TUI dialog. Bridge proven end to end.
 
 ## Upstream context (checked 2026-11-19)
 

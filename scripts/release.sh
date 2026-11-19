@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Release script for opencode-vcc-compaction.
-# Modeled on opencode-dev-framework's scripts/release.sh, adapted to this
-# repo: no root package.json and no build, so the version lives in
-# vcc-plugin/package.json (bumped with node, not `npm version`) and
-# validation is the project's own gate commands.
+# Workspace repo: the version lives in vcc-plugin/package.json (bumped
+# with node, not `npm version`); validation is the workspace gate
+# scripts (`npm run typecheck/test/lint:md`), so this script matches
+# `.dev-framework.yml` and CI exactly. Toolchain installs with `npm ci`.
 #
 # Usage:
 #   ./scripts/release.sh [patch|minor|major]
@@ -41,11 +41,9 @@ if [ -n "$(git status --porcelain)" ]; then
 fi
 
 echo "==> Running validation..."
-node --check vcc-plugin/index.ts
-node compiler/selftest.mjs
-node vcc-plugin/selftest.mjs
-node scripts/check-engine-sync.mjs
-npx --yes markdownlint-cli2 "**/*.md"
+npm run typecheck
+npm run test
+npm run lint:md
 
 echo ""
 echo "==> Bumping version (vcc-plugin/package.json)..."
