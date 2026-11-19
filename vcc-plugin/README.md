@@ -105,9 +105,39 @@ information.
 - **Deterministic** — the same messages + config always compile to the
   byte-identical summary (proven by double-run selftests).
 - **Measured** — 7,500 mixed messages compile to a ~28k-character summary
-  in ~0.8 s on the dev machine, byte-identical across runs.
+  in ~0.8 s on the dev machine, byte-identical across runs (see
+  Performance).
 - **Fail-safe** — no keepID, no result: the host falls back to model
   compaction rather than persisting a broken summary.
+
+## Performance
+
+Single-threaded `node`, no model, no network. Measured on the dev machine
+(Xeon W-2195, node v24.22.3) with synthetic mixed histories (user text +
+assistant text + tool-call + tool-result, default config), best of 3 runs.
+Input sizes are request-payload characters with ÷4 token estimates:
+
+| History | Input | Summary | Time |
+| --- | --- | --- | --- |
+| 999 messages | ~0.58M chars (~150k tokens) | 28,130 chars | 80 ms |
+| 4,998 messages | ~2.9M chars (~730k tokens) | 28,047 chars | 496 ms |
+| 9,999 messages | ~5.9M chars (~1.5M tokens) | 28,047 chars | 934 ms |
+| 24,999 messages | ~14.7M chars (~3.7M tokens) | 27,876 chars | 4.7 s |
+
+Two things to read off this table:
+
+- Compile time scales roughly linearly with history size — the pass is a
+  single deterministic walk, and every run above was byte-identical.
+- Summary size stays flat because the default `maxTokens` cap (8192 entry
+  tokens) binds: bigger histories elide more rows, they don't emit more
+  text. Raise the cap if you want larger checkpoints, at the cost of more
+  context per compaction.
+
+Caveats: synthetic repetitive text, one machine, one node version —
+indicative, not a benchmark. Real sessions vary with text shape
+(long tool outputs and base64 blobs cost more per message), but the
+scaling shape (linear time, cap-flat output) follows from the algorithm,
+not the input.
 
 ## Install
 

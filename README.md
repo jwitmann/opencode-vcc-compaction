@@ -12,7 +12,7 @@ Why verbatim: a model asked to summarize fills what it cannot quite recall with 
 - **LLM-free** — no summarizer prompt, no inference latency, no token spend.
 - **Verbatim** — prior checkpoints carried over word for word, never re-summarized.
 - **Deterministic** — same messages + config → byte-identical summary.
-- **Measured** — 7,500 mixed messages compile to a ~28k-character summary in ~0.8 s on the dev machine.
+- **Measured** — 7,500 mixed messages compile to a ~28k-character summary in ~0.8 s on the dev machine (full sweep in [`vcc-plugin/README.md`](vcc-plugin/README.md#performance)).
 - **Fail-safe** — when no keepID can be picked, the hook abstains and the host falls back to model compaction. Never a broken summary.
 
 Full manual (example output, config behavior, mapping, tokenizer): [`vcc-plugin/README.md`](vcc-plugin/README.md).
