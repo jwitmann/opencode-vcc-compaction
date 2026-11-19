@@ -12,7 +12,7 @@ On every `compaction` hook the plugin compiles history with a deterministic regi
 - `docs/research/` — verdicts: [`compaction-probe-verdict.md`](docs/research/compaction-probe-verdict.md) (closes `PROBE.md`), [`vcc-plugin-live-verdict.md`](docs/research/vcc-plugin-live-verdict.md) (plugin live PASS).
 - `docs/plans/` — build records for the compiler port and the plugin.
 - `demo-project/` — scratch harness registering `../vcc-plugin` (never run from a real project).
-- `PROBE.md` / `REUSE.md` — the original probe spec and reuse inventory (closed, kept as record).
+- `docs/archive/` — the original probe spec (`PROBE.md`) and reuse inventory (`REUSE.md`): closed, kept as record.
 - `AGENTS.md` — contributor contract for AI agents.
 
 ## Install

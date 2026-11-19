@@ -8,7 +8,7 @@ is `vcc-plugin/`; `probe-plugin/` + `probe-results/` are closed evidence.
 
 ## Restart protocol
 
-1. Read `PROBE.md`, then `REUSE.md`.
+1. Read `docs/archive/PROBE.md`, then `docs/archive/REUSE.md`.
 2. Record `opencode --version` + resolved `@opencode/plugin` version with every result.
 3. Resolutions live here: verdicts and durable findings go under
    `docs/research/` (per owner decision 2026-11-19, probe resolutions
@@ -16,8 +16,8 @@ is `vcc-plugin/`; `probe-plugin/` + `probe-results/` are closed evidence.
 
 ## Project layout
 
-- `PROBE.md` — the one probe that decides everything (compaction `result` override).
-- `REUSE.md` — lift-verbatim vs. mechanism-swap vs. reject inventory.
+- `docs/archive/PROBE.md` — the one probe that decides everything (compaction `result` override).
+- `docs/archive/REUSE.md` — lift-verbatim vs. mechanism-swap vs. reject inventory.
 - `probe-plugin/` — throwaway OpenCode V2 plugin (host-only + `@opencode/plugin`;
   must not depend on Operator Memory).
 - `probe-project/` — scratch Brain-free project (own `opencode.jsonc` registering
@@ -49,7 +49,7 @@ is `vcc-plugin/`; `probe-plugin/` + `probe-results/` are closed evidence.
 
 - **Never push to remote.** Pushing is a deliberate user action, never an agent action.
 - Never run window-filling sessions for threshold tests without explicit user
-  approval (disproportionately expensive — see `PROBE.md` Do-not).
+  approval (disproportionately expensive — see `docs/archive/PROBE.md` Do-not).
 - Never let `probe-plugin/` depend on Operator Memory or touch `~/.operator/state/`.
 - Never commit this workspace into `operator-memory` (`feat/context-management`
   stays `feat(core)` + `feat(opencode-v2)` only, per `README.md`).
@@ -63,12 +63,12 @@ is `vcc-plugin/`; `probe-plugin/` + `probe-results/` are closed evidence.
 ### Ask first
 
 - Adding a dependency, changing the evidence schema, or rewording
-  `PROBE.md`'s deciding question.
+  `docs/archive/PROBE.md`'s deciding question.
 - Anything in Don't that the task seems to require.
 
 ## Verification
 
-- Plan compliance: re-read `PROBE.md`/`REUSE.md` before declaring a task
+- Plan compliance: re-read `docs/archive/PROBE.md`/`docs/archive/REUSE.md` before declaring a task
   done and confirm every requirement was met; fix gaps first.
 - `commands.typecheck`: `node --check probe-plugin/index.ts && node --check vcc-plugin/index.ts`.
 - `commands.test`: `node scripts/verify-evidence.mjs`

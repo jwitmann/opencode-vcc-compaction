@@ -1,7 +1,7 @@
 import { Plugin } from "@opencode/plugin"
 import { appendFileSync } from "node:fs"
 
-// Branch A/B probe — see ../PROBE.md.
+// Branch A/B probe — see ../docs/archive/PROBE.md.
 //
 // Branch A (default): set event.result to a deterministic marker summary with
 // metadata.keepID = first message ID (whole tail kept), so the host must take
