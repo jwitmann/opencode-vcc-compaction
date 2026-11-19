@@ -52,6 +52,9 @@ import {
   searchSession,
 } from "./engine/search.mjs";
 
+/** Re-exported so command wiring imports only `snapshot.mjs`, never `./engine/` directly. */
+export { COMPILER_REV } from "./engine/compile.mjs";
+
 export const SNAPSHOT_VERSION = 1;
 
 /** Storage key prefix; full key is `${SNAPSHOT_KEY_PREFIX}${sessionID}`. */
@@ -212,6 +215,89 @@ export function parseRecallArgs(text) {
  */
 export function resolveRecallSelections(cleanedMessages, type, id) {
   return resolveRecallReference(makeSnapshotSession(cleanedMessages), type, id);
+}
+
+/**
+ * Strip a `/vcc-search` command prefix, returning the raw pattern.
+ * @param text - raw invocation prompt text.
+ * @returns `{ pattern }`, or `{ error }` with usage text.
+ */
+export function parseSearchArgs(text) {
+  const pattern = String(text ?? "").replace(/^\s*\/vcc-search\b/iu, "").trim();
+  if (pattern.length === 0) return { error: "usage: /vcc-search <keyword-or-regex> (e.g. `/vcc-search login`)" };
+  return { pattern };
+}
+
+/**
+ * Format a `/vcc-status` reply from the stored snapshot and live config.
+ * Pure (caller supplies `now`); never throws on malformed snapshots.
+ * @param stored - storage value (`{ version, messages, count, lastID, writtenAt }` or undefined).
+ * @param config - resolved plugin config from `buildConfig`.
+ * @param rev - engine revision string.
+ * @param now - current epoch ms (for age computation).
+ * @returns status text.
+ */
+export function formatStatusText(stored, config, rev, now) {
+  const lines = [`**/vcc-status** — opencode-vcc-compaction (engine ${rev})`];
+  const cfg = config !== null && typeof config === "object" ? config : {};
+  const maxTokens = typeof cfg.maxTokens === "number" ? cfg.maxTokens : "?";
+  const keepMessages = typeof cfg.keepMessages === "number" ? cfg.keepMessages : "?";
+  const reasoning = cfg.includeReasoning === true ? "on" : "off";
+  const hide = Array.isArray(cfg.hideTools) ? cfg.hideTools.length : 0;
+  const noise = Array.isArray(cfg.noisePatterns) ? cfg.noisePatterns.length : "?";
+  lines.push(`config: maxTokens=${maxTokens} keepMessages=${keepMessages} reasoning=${reasoning} hideTools=${hide} noisePatterns=${noise}`);
+  const snap = stored !== null && typeof stored === "object" ? stored : undefined;
+  const messages = Array.isArray(snap?.messages) ? snap.messages : undefined;
+  if (messages === undefined) {
+    lines.push("snapshot: none yet (recall/search will stay silent until the first context event lands)");
+    return lines.join("\n");
+  }
+  const count = typeof snap.count === "number" ? snap.count : messages.length;
+  const version = typeof snap.version === "number" ? snap.version : "?";
+  const lastID = typeof snap.lastID === "string" && snap.lastID !== "" ? snap.lastID : "(none)";
+  let age = "(unknown age)";
+  if (typeof snap.writtenAt === "number" && Number.isFinite(snap.writtenAt) && typeof now === "number" && Number.isFinite(now)) {
+    const seconds = Math.max(0, Math.floor((now - snap.writtenAt) / 1000));
+    age = seconds < 60 ? `${seconds}s ago` : `${Math.floor(seconds / 60)}m ago`;
+  }
+  lines.push(`snapshot: v${version}, ${count} message(s), lastID=${lastID}, written ${age}`);
+  return lines.join("\n");
+}
+
+/**
+ * Classify a storage read for command wiring: one shared outcome for all
+ * vcc- commands so read-failure vs empty vs ready never diverge per command.
+ * @param stored - raw `ctx.storage.get` value (or the read-failure sentinel).
+ * @returns `{ status: "failed" }`, `{ status: "empty" }`, or `{ status: "ready", messages }`.
+ */
+export function classifySnapshotStore(stored) {
+  if (stored !== undefined && stored !== null && stored.__vccReadFailed === true) return { status: "failed" };
+  const envelope = stored !== null && typeof stored === "object" ? stored : undefined;
+  const messages = envelope?.messages;
+  if (!Array.isArray(messages) || messages.length === 0) return { status: "empty" };
+  return { status: "ready", messages, stored: envelope };
+}
+
+/**
+ * Format a `/vcc-recall` agent reply (header + recalled text).
+ * @param type - reference type (`seq`, `result`, `checkpoint`).
+ * @param id - reference text.
+ * @param recalled - `recallSession` output.
+ * @returns reply text.
+ */
+export function formatRecallReply(type, id, recalled) {
+  const label = `**/vcc-recall ${type} ${id}** (${recalled.seqs.length} event(s), ${recalled.tokens} tokens${recalled.missing > 0 ? `, ${recalled.missing} missing` : ""}${recalled.truncated ? ", budget-truncated" : ""})`;
+  return `${label}\n\n${recalled.text}`;
+}
+
+/**
+ * Format a `/vcc-search` agent reply (header + search text).
+ * @param pattern - raw search pattern.
+ * @param found - `searchSession` output.
+ * @returns reply text.
+ */
+export function formatSearchReply(pattern, found) {
+  return `**/vcc-search ${pattern}** (${found.totalMatches} matching event(s))\n\n${found.text}`;
 }
 
 /**
@@ -411,7 +497,7 @@ export function searchSnapshot(cleanedMessages, patternSource, config = {}) {
   const hits = out.hits.filter((hit) => hit.seq !== 0);
   const dropped = out.hits.length - hits.length;
   const totalMatches = out.totalMatches - dropped;
-  const omitted = Math.max(0, out.omitted - dropped);
+  const omitted = Math.max(0, totalMatches - hits.length);
   const lines = [
     `[search "${out.pattern}": ${totalMatches} matching event(s)]`,
     ...hits.map((hit) => hit.text),

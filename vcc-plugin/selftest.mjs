@@ -22,8 +22,13 @@ import {
 import {
   SNAPSHOT_VERSION,
   buildSnapshot,
+  classifySnapshotStore,
+  formatRecallReply,
+  formatSearchReply,
+  formatStatusText,
   makeSnapshotSession,
   parseRecallArgs,
+  parseSearchArgs,
   recallFromSnapshot,
   searchSnapshot,
   snapshotMessageToRecall,
@@ -241,6 +246,39 @@ check(
   "snapshot recall tolerates nullish stored parts",
   snapshotMessageToRecall({ role: "user", content: [null, { type: "text", text: "hi" }, { noType: true }] }).content,
   [{ type: "text", text: "hi" }],
+);
+check("search args strips prefix", parseSearchArgs("/vcc-search login"), { pattern: "login" });
+check("search args raw pattern", parseSearchArgs("foo.*bar"), { pattern: "foo.*bar" });
+check("search args empty is usage", "error" in parseSearchArgs("/vcc-search"), true);
+const statusText = formatStatusText(
+  { version: 1, messages: snap.messages, count: snap.count, lastID: snap.lastID, writtenAt: 1000000 },
+  { maxTokens: 8192, keepMessages: 6, includeReasoning: false, hideTools: [], noisePatterns: [] },
+  "test-rev",
+  1000120,
+);
+check("status text reports engine rev + config + snapshot", statusText.includes("test-rev") && statusText.includes("5 message(s)"), true);
+check("status text handles no snapshot", formatStatusText(undefined, {}, "r", 0).includes("none yet"), true);
+check("status text never throws on garbage", formatStatusText({ messages: "nope" }, null, "r", NaN).includes("/vcc-status"), true);
+check("snapshot store classifies failed", classifySnapshotStore({ __vccReadFailed: true }), { status: "failed" });
+check("snapshot store classifies empty", classifySnapshotStore(undefined).status, "empty");
+check("snapshot store classifies ready", classifySnapshotStore({ version: 1, messages: snap.messages, count: snap.count }).status, "ready");
+check(
+  "search omits phantom pad without undercount",
+  (() => {
+    const out = searchSnapshot(snap.messages, "e", { maxSearchHits: 50, maxRecallTokens: 16000 });
+    return out.hits.every((hit) => hit.seq !== 0) && out.omitted === out.totalMatches - out.hits.length;
+  })(),
+  true,
+);
+check(
+  "recall reply labels provenance",
+  formatRecallReply("seq", "1", { seqs: [1], tokens: 10, missing: 0, truncated: false, text: "hi" }),
+  "**/vcc-recall seq 1** (1 event(s), 10 tokens)\n\nhi",
+);
+check(
+  "search reply labels pattern",
+  formatSearchReply("login", { totalMatches: 1, text: "hit" }),
+  "**/vcc-search login** (1 matching event(s))\n\nhit",
 );
 const recallCmd = (() => {
   const parsed = parseRecallArgs("/vcc-recall 2-3");

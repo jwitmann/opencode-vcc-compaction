@@ -2,11 +2,18 @@ import { Plugin } from "@opencode/plugin/effect"
 import { Effect } from "effect"
 import { buildConfig, compileCompaction } from "./adapter.mjs"
 import {
+  COMPILER_REV,
   SNAPSHOT_KEY_PREFIX,
   buildSnapshot,
+  classifySnapshotStore,
+  formatRecallReply,
+  formatSearchReply,
+  formatStatusText,
   parseRecallArgs,
+  parseSearchArgs,
   recallFromSnapshot,
   resolveRecallSelections,
+  searchSnapshot,
   snapshotNeedsWrite,
 } from "./snapshot.mjs"
 
@@ -132,19 +139,19 @@ export default Plugin.define({
                         }),
                     ),
                     (stored) => {
-                      if (stored !== undefined && stored !== null && (stored as { __vccReadFailed?: unknown }).__vccReadFailed === true) {
+                      const classified = classifySnapshotStore(stored as never)
+                      if (classified.status === "failed") {
                         return ctx.session.prompt({
                           sessionID: input.sessionID,
                           text: "**/vcc-recall** — snapshot read failed, try again in a moment",
                           delivery: input.delivery,
                         })
                       }
-                      const messages = (stored as { messages?: unknown } | undefined)?.messages
-                      if (!Array.isArray(messages) || messages.length === 0) {
+                      if (classified.status === "empty") {
                         console.log("[opencode-vcc-compaction] vcc-recall: no snapshot yet for this session")
                         return Effect.void
                       }
-                      const resolved = resolveRecallSelections(messages as never, parsed.type, parsed.id)
+                      const resolved = resolveRecallSelections(classified.messages as never, parsed.type, parsed.id)
                       if (resolved.errors.length > 0 || resolved.selections.length === 0) {
                         return ctx.session.prompt({
                           sessionID: input.sessionID,
@@ -152,11 +159,10 @@ export default Plugin.define({
                           delivery: input.delivery,
                         })
                       }
-                      const recalled = recallFromSnapshot(messages as never, resolved.selections)
-                      const label = `**/vcc-recall ${parsed.type} ${parsed.id}** (${recalled.seqs.length} event(s), ${recalled.tokens} tokens${recalled.missing > 0 ? `, ${recalled.missing} missing` : ""}${recalled.truncated ? ", budget-truncated" : ""})`
+                      const recalled = recallFromSnapshot(classified.messages as never, resolved.selections)
                       return ctx.session.prompt({
                         sessionID: input.sessionID,
-                        text: `${label}\n\n${recalled.text}`,
+                        text: formatRecallReply(parsed.type, parsed.id, recalled as never),
                         delivery: input.delivery,
                       })
                     },
@@ -169,9 +175,114 @@ export default Plugin.define({
                 }),
             ),
         })
+        editor.add({
+          name: "vcc-search",
+          description: "Search this session's history by keyword or regex; returns (seq N) hits for /vcc-recall.",
+          execute: (input) =>
+            Effect.catchAllCause(
+              Effect.flatMap(
+                Effect.sync(() => parseSearchArgs((input.prompt as { text?: unknown })?.text ?? "")),
+                (parsed) => {
+                  if ("error" in parsed) {
+                    return ctx.session.prompt({
+                      sessionID: input.sessionID,
+                      text: `**/vcc-search** — ${parsed.error}`,
+                      delivery: input.delivery,
+                    })
+                  }
+                  return Effect.flatMap(
+                    Effect.catchAll(
+                      ctx.storage.get(`${SNAPSHOT_KEY_PREFIX}${input.sessionID}`),
+                      (error) =>
+                        Effect.sync(() => {
+                          console.warn("[opencode-vcc-compaction] vcc-search: snapshot read failed:", error)
+                          return { __vccReadFailed: true as const }
+                        }),
+                    ),
+                    (stored) => {
+                      const classified = classifySnapshotStore(stored as never)
+                      if (classified.status === "failed") {
+                        return ctx.session.prompt({
+                          sessionID: input.sessionID,
+                          text: "**/vcc-search** — snapshot read failed, try again in a moment",
+                          delivery: input.delivery,
+                        })
+                      }
+                      if (classified.status === "empty") {
+                        console.log("[opencode-vcc-compaction] vcc-search: no snapshot yet for this session")
+                        return Effect.void
+                      }
+                      let found
+                      try {
+                        found = searchSnapshot(classified.messages as never, parsed.pattern)
+                      } catch (error) {
+                        return ctx.session.prompt({
+                          sessionID: input.sessionID,
+                          text: `**/vcc-search** — ${error instanceof Error ? error.message : String(error)}`,
+                          delivery: input.delivery,
+                        })
+                      }
+                      return ctx.session.prompt({
+                        sessionID: input.sessionID,
+                        text: formatSearchReply(parsed.pattern, found as never),
+                        delivery: input.delivery,
+                      })
+                    },
+                  )
+                },
+              ),
+              (cause) =>
+                Effect.sync(() => {
+                  console.warn("[opencode-vcc-compaction] vcc-search failed:", cause)
+                }),
+            ),
+        })
+        editor.add({
+          name: "vcc-status",
+          description: "Show opencode-vcc-compaction engine revision, config, and snapshot freshness.",
+          execute: (input) =>
+            Effect.catchAllCause(
+              Effect.flatMap(
+                Effect.flatMap(
+                  Effect.catchAll(
+                    ctx.storage.get(`${SNAPSHOT_KEY_PREFIX}${input.sessionID}`),
+                    (error) =>
+                      Effect.sync(() => {
+                        console.warn("[opencode-vcc-compaction] vcc-status: snapshot read failed:", error)
+                        return { __vccReadFailed: true as const }
+                      }),
+                  ),
+                  (stored) => {
+                    const classified = classifySnapshotStore(stored as never)
+                    if (classified.status === "failed") {
+                      return ctx.session.prompt({
+                        sessionID: input.sessionID,
+                        text: "**/vcc-status** — snapshot read failed, try again in a moment",
+                        delivery: input.delivery,
+                      })
+                    }
+                    return ctx.session.prompt({
+                      sessionID: input.sessionID,
+                      text: formatStatusText(
+                        classified.status === "ready" ? classified.stored as never : undefined,
+                        config as never,
+                        COMPILER_REV as string,
+                        Date.now(),
+                      ),
+                      delivery: input.delivery,
+                    })
+                  },
+                ),
+              ),
+              (cause) =>
+                Effect.sync(() => {
+                  console.warn("[opencode-vcc-compaction] vcc-status failed:", cause)
+                }),
+            ),
+        })
       })
     } catch (error) {
-      console.warn("[opencode-vcc-compaction] command API unavailable; /vcc-recall not registered:", error)
+      console.warn("[opencode-vcc-compaction] command API unavailable; /vcc-* commands not registered:", error)
     }
   }),
 })
