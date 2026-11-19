@@ -45,8 +45,9 @@ Context file for AI agents working on the VCC port investigation: can
 ## Verification
 
 - `commands.typecheck`: `node --check probe-plugin/index.ts`.
-- `commands.test`: `node scripts/verify-evidence.mjs` (JSONC configs parse
-  + every JSONL line version-tagged; proven fail-on-mutation 2026-11-19).
+- `commands.test`: `node scripts/verify-evidence.mjs`
+  (JSONC configs parse + every JSONL line version-tagged;
+  proven fail-on-mutation 2026-11-19).
 - Evidence standard is `probe-results/*.jsonl` lines (versions on every line)
   plus static source refs (`file:line`). Gate enforcement is `require_review`
   plus the two runnable gates — see `.dev-framework/hardening.md`.

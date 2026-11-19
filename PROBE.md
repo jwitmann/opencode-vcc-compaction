@@ -11,7 +11,7 @@
 - `probe-project/opencode.jsonc`: registers `../probe-plugin` only. Brain-free empty tree.
 - `probe-plugin`: minimal `Plugin.define({ id: "vcc-probe", setup(ctx) { ... } })` with:
   - `ctx.session.hook("compaction", (event) => { ... })` logging full shape: keys of `event`, `system.length`, `messages.length`, message roles/IDs, `options`, whether `result` is settable.
-  - Branch A: set `event.result = "<deterministic marker 12345>"` and log whether any model request followed (`model.request` hook + `session.step.ended` tokens).
+  - Branch A: set `event.result` to `{ summary: "<deterministic marker 12345>", metadata: { keepID: <first kept message id> } }` (a bare summary drops the tail — static evidence `static-A-tail`: the host rebuilds the tail only from `metadata.keepID`) and log whether any model request followed (`model.request` hook with kind=compaction; `session.step.ended` is not a plugin hook, so the kind filter is the billing signal).
   - Branch B (control): mutate `system` only, leave `messages` intact, observe post-compaction history shape on next request (expect: single user-role summary message whose ID equals inbox item).
 - Results: append JSON lines to `probe-results/compaction-result-override.jsonl` with `{ ts, opencodeVersion, pluginVersion, branch, observation }`.
 
