@@ -6,8 +6,10 @@ import { appendFileSync } from "node:fs"
 // Branch A (default): set event.result to a deterministic marker summary with
 // metadata.keepID = first message ID (whole tail kept), so the host must take
 // fromHook() with no model call. A "model.request" hook with kind =
-// "compaction" firing afterwards means the override did NOT short-circuit.
-// Branch B (control): mutate system only, leave messages/result intact.
+// "compaction" fires at request-build time (before the result check), so it is
+// NOT proof of a call; only an "http.request" hook firing means the provider
+// was really reached. Branch B (control): mutate system only, leave
+// messages/result intact.
 //
 // The runner launches opencode with cwd=probe-project and exports:
 // VCC_PROBE_BRANCH (A|B), VCC_PROBE_OPENCODE_VERSION,
@@ -51,7 +53,20 @@ export default Plugin.define({
 
     await ctx.session.hook("model.request", (event: any) => {
       if (event?.kind !== "compaction") return
-      const msg = "model.request kind=compaction observed (model call NOT skipped)"
+      // Construction-time signal: prepare() triggers this hook while
+      // building the request, BEFORE deliver() checks event.result
+      // (model-request.ts:361 vs compaction.ts:635). Fires on the
+      // short-circuit path too — not proof of a provider call.
+      const msg = "model.request kind=compaction (request built; call unproven)"
+      console.log("[vcc-probe]", msg)
+      record(branch, msg)
+    })
+
+    await ctx.session.hook("http.request", (event: any) => {
+      if (event?.kind !== "compaction") return
+      // True network discriminator: only a real provider stream reaches here.
+      // Expect zero such lines on the Branch A short-circuit path.
+      const msg = "http.request kind=compaction observed (real provider call)"
       console.log("[vcc-probe]", msg)
       record(branch, msg)
     })
