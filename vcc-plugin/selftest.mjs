@@ -20,6 +20,7 @@ import {
   toNode,
 } from "./adapter.mjs";
 import {
+  MAX_SNAPSHOT_WRITE_BYTES,
   SNAPSHOT_VERSION,
   buildSnapshot,
   classifySnapshotStore,
@@ -33,6 +34,7 @@ import {
   searchSnapshot,
   snapshotMessageToRecall,
   snapshotNeedsWrite,
+  snapshotWriteBytes,
 } from "./snapshot.mjs";
 import { parseSeqSpec, recallSession, resolveRecallReference } from "./engine/recall.mjs";
 import { sessionEventAt, sessionEvents } from "./engine/session-compat.mjs";
@@ -216,6 +218,14 @@ check("snapshot growth guard same", snapshotNeedsWrite({ version: snap.version, 
 check("snapshot growth guard grown", snapshotNeedsWrite({ version: snap.version, count: 4, lastID: "m5" }, snap), true);
 check("snapshot growth guard first", snapshotNeedsWrite(undefined, snap), true);
 check("snapshot growth guard version bump", snapshotNeedsWrite({ version: 0, count: snap.count, lastID: snap.lastID }, snap), true);
+check("snapshot write budget is 1MB", MAX_SNAPSHOT_WRITE_BYTES, 1000000);
+check("snapshot write bytes small envelope stays under budget", snapshotWriteBytes(snap) > MAX_SNAPSHOT_WRITE_BYTES, false);
+check(
+  "snapshot write bytes trips above 1MB",
+  snapshotWriteBytes({ version: 1, messages: [{ role: "user", content: [{ type: "text", text: "x".repeat(MAX_SNAPSHOT_WRITE_BYTES + 1) }] }], count: 1 }) > MAX_SNAPSHOT_WRITE_BYTES,
+  true,
+);
+check("snapshot write bytes unserializable never trips", snapshotWriteBytes((() => { const circular = {}; circular.self = circular; return circular; })()), 0);
 
 const session = makeSnapshotSession(snap.messages);
 const events = sessionEvents(session);

@@ -85,3 +85,20 @@ write; fixed before commit). Battery green (`node --check`,
   undefined-sessionID handling verified correct.
 - framework pattern-38/40: no drift. framework code-39: clean
   (3 known notes: dead `snap === null`, `seen` growth, gate safety).
+
+## 7. Interim real-session data (2026-11-19, evening; final revisit pending)
+
+- Live host `kv` shows the working session at 92 cleaned messages /
+  ~493KB snapshot ≈ **5.4KB/message — ~30× the 160B/message synthetic
+  filler** behind the §1 thresholds. Drivers: 45 tool-call/result pairs
+  (full result JSON) + 30 stored reasoning blocks.
+- Consequence: the 1MB-per-write mark arrives at **~185 messages**, not
+  thousands; lifetime-bytes math is 30× worse than §1 too. The working
+  session (phases 3–4 still to come) will cross 1MB, becoming the
+  empirical ceiling probe.
+- Implemented: `MAX_SNAPSHOT_WRITE_BYTES` (1MB) + `snapshotWriteBytes`
+  in `snapshot.mjs`, warn-and-continue tripwire in `remember`
+  (`index.ts`), 4 selftest vectors. Battery green.
+- Open: drop reasoning blocks from the snapshot (they are ~⅓ of parts;
+  recall fidelity vs size)? Final numbers + decision after this session
+  ends.

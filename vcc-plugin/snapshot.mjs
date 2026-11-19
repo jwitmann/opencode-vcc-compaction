@@ -313,6 +313,28 @@ export function snapshotNeedsWrite(previous, next) {
   return next.lastID !== previous.lastID;
 }
 
+// Tripwire for the O(n²) write-amplification watch: one full-envelope
+// rewrite per turn, so warn when a single write exceeds ~1MB. Real
+// sessions run ~5KB/message (tool-result JSON + reasoning), far above
+// the 160B/message synthetic fillers the original thresholds assumed.
+export const MAX_SNAPSHOT_WRITE_BYTES = 1000000;
+
+/**
+ * Estimate the serialized size of a snapshot envelope.
+ * Unserializable input measures 0 (never trips; the write path
+ * warn-and-continues exactly like every other snapshot failure).
+ * @param envelope - the snapshot value about to be written.
+ * @returns JSON length in chars, or 0 when unserializable.
+ */
+export function snapshotWriteBytes(envelope) {
+  try {
+    const text = JSON.stringify(envelope);
+    return typeof text === "string" ? text.length : 0;
+  } catch {
+    return 0;
+  }
+}
+
 /**
  * Map one cleaned part to a recall block.
  * @param part - cleaned part.

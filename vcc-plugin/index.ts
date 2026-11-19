@@ -5,6 +5,7 @@ import { buildConfig, compileCompaction } from "./adapter.mjs"
 import { VCC_REPLY_EVENT, VCC_RPC_ID, buildReplyPayload } from "./events.mjs"
 import {
   COMPILER_REV,
+  MAX_SNAPSHOT_WRITE_BYTES,
   SNAPSHOT_KEY_PREFIX,
   buildSnapshot,
   classifySnapshotStore,
@@ -17,6 +18,7 @@ import {
   resolveRecallSelections,
   searchSnapshot,
   snapshotNeedsWrite,
+  snapshotWriteBytes,
 } from "./snapshot.mjs"
 
 // opencode-vcc-compaction: deterministic LLM-free compaction summaries.
@@ -27,9 +29,9 @@ import {
 // metadata.keepID. When the adapter abstains (no message id at/after the
 // keep cut), result stays unset and the host falls back to model compaction.
 // Alongside, context + compaction hooks snapshot cleaned raw messages
-// (snapshot.mjs, growth-guarded by version/count/lastID, warn-and-continue)
-// so the vcc- commands can recall/search history the command ctx cannot
-// read directly.
+// (snapshot.mjs: growth-guarded by version/count/lastID, >1MB single-write
+// warn tripwire, every failure path warn-and-continue) so the vcc-
+// commands can recall/search history the command ctx cannot read directly.
 //
 // Effect-direct by owner decision: written against @opencode/plugin/effect
 // from the start, so no convert-to-Effect task ever arises.
@@ -175,23 +177,35 @@ export default Plugin.define({
             if (snap === null) return Effect.void
             const prev = seen.get(sessionID as string)
             if (!snapshotNeedsWrite(prev, snap)) return Effect.void
+            const envelope = {
+              version: snap.version,
+              messages: snap.messages,
+              count: snap.count,
+              ...(snap.lastID === undefined ? {} : { lastID: snap.lastID }),
+              writtenAt: Date.now(),
+            }
+            const writeBytes = snapshotWriteBytes(envelope)
             return Effect.catch(
               Effect.flatMap(
-                ctx.storage.set(`${SNAPSHOT_KEY_PREFIX}${sessionID}`, {
-                  version: snap.version,
-                  messages: snap.messages,
-                  count: snap.count,
-                  ...(snap.lastID === undefined ? {} : { lastID: snap.lastID }),
-                  writtenAt: Date.now(),
-                }),
-                () =>
-                  Effect.sync(() => {
-                    seen.set(sessionID as string, {
-                      version: snap.version,
-                      count: snap.count,
-                      lastID: snap.lastID,
+                writeBytes > MAX_SNAPSHOT_WRITE_BYTES
+                  ? Effect.sync(() => {
+                      console.warn(
+                        `[opencode-vcc-compaction] snapshot write large: session ${sessionID} count=${snap.count} ~${writeBytes} bytes (O(n²) watch: full envelope rewritten per turn)`,
+                      )
                     })
-                  }),
+                  : Effect.void,
+                () =>
+                  Effect.flatMap(
+                    ctx.storage.set(`${SNAPSHOT_KEY_PREFIX}${sessionID}`, envelope),
+                    () =>
+                      Effect.sync(() => {
+                        seen.set(sessionID as string, {
+                          version: snap.version,
+                          count: snap.count,
+                          lastID: snap.lastID,
+                        })
+                      }),
+                  ),
               ),
               (error) =>
                 Effect.sync(() => {
