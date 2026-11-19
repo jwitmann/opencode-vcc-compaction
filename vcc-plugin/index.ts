@@ -20,7 +20,13 @@ export default Plugin.define({
 
     yield* ctx.session.hook("compaction", (event) =>
       Effect.sync(() => {
-        const outcome = compileCompaction(event.messages, config)
+        let outcome
+        try {
+          outcome = compileCompaction(event.messages, config)
+        } catch (error) {
+          console.warn("[vcc-compaction] adapter failed; leaving result unset:", error)
+          return
+        }
         if (outcome === undefined) return
         event.result = {
           summary: outcome.summary,

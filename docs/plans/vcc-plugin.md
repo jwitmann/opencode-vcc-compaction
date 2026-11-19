@@ -56,7 +56,7 @@ hook adapter written directly against `@opencode/plugin/effect`
   form), config table, how it works, Effect note, status/limits
   (ordinal seqs — recall tools are follow-up; multi-result link limit).
 - `demo-project/opencode.jsonc` — scratch project registering
-  `../vcc-plugin` with options + `compaction.buffer 95%` for a cheap
+  `../vcc-plugin` with options + `compaction.buffer 99%` for a cheap
   live trigger. Brain-free like `probe-project/` (never committed into
   real work; runs only with explicit approval + explicit `--model`).
 
@@ -87,6 +87,6 @@ not the recall loop.
 - `node scripts/verify-evidence.mjs` (gate untouched — no probe-results
   change in this task).
 - Live run (gated): explicit user approval + explicit `--model`, cwd a
-  scratch project registering the plugin, `compaction.buffer 95%`,
+  scratch project registering the plugin, `compaction.buffer 99%`,
   verify the stored summary equals the adapter output and no
   `http.request kind=compaction` fires. Record versions per AGENTS.md.

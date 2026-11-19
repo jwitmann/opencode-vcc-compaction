@@ -22,7 +22,8 @@
  *   empty; documented).
  * - Message `metadata` is NOT projected (read-only stored metadata, never
  *   DSH `source` shapes).
- * - seqs are 1-based ordinals over the adapted messages. The summary's
+ * - seqs are 1-based ordinals over the adapted nodes (contiguous:
+ *   skipped messages consume no seq). The summary's
  *   `(seq N)` pointers are positional; OpenCode-native recall (message /
  *   part IDs) is follow-up work, not this adapter.
  * - `keepID` must be a message id present in the request (the host splits
@@ -224,8 +225,8 @@ export function buildConfig(options) {
 export function compileCompaction(messages, config = buildConfig({})) {
   const list = Array.isArray(messages) ? messages : [];
   const nodes = [];
-  for (let index = 0; index < list.length; index += 1) {
-    const node = toNode(list[index], index + 1);
+  for (const message of list) {
+    const node = toNode(message, nodes.length + 1);
     if (node !== null) nodes.push(node);
   }
   const keepID = pickKeepID(list, config.keepMessages);

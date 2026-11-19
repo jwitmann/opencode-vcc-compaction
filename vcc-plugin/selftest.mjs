@@ -89,6 +89,12 @@ function runSuite() {
   out.fullStats = [full.stats.nodes, full.stats.entries > 0, full.capped];
   out.abstain = compileCompaction([{ role: "user", content: [{ type: "text", text: "no ids anywhere" }] }], buildConfig({}));
   out.defaultConfig = compileCompaction([{ id: "x", role: "user", content: [{ type: "text", text: "hi" }] }]).keepID;
+  out.contiguousSeqs = compileCompaction([
+    { id: "u1", role: "user", content: [{ type: "text", text: "first" }] },
+    { role: "system", content: [{ type: "text", text: "skipped" }] },
+    { id: "t9", role: "assistant", content: [{ type: "tool-call", id: "c9", name: "bash", input: "echo hi" }] },
+    { role: "tool", content: [{ type: "tool-result", id: "c9", name: "bash", result: { type: "text", value: "hi" } }] },
+  ], buildConfig({})).summary.includes("(seq 2 -> result 3)");
   out.capFooter = compileCompaction(MSGS, buildConfig({ maxTokens: 30 })).summary.includes("cap enforced");
   return JSON.stringify(out);
 }
@@ -140,6 +146,7 @@ const EXPECTED = JSON.stringify({
   fullStats: [5, true, false],
   abstain: undefined,
   defaultConfig: "x",
+  contiguousSeqs: true,
   capFooter: true,
 });
 
