@@ -253,8 +253,7 @@ export default Plugin.define({
               : remember(
                   (event as { sessionID: string }).sessionID,
                   (event as { messages: unknown }).messages,
-                )
-              : Effect.void,
+                ),
             () =>
               Effect.sync(() => {
             let outcome
@@ -270,6 +269,7 @@ export default Plugin.define({
               metadata: { keepID: outcome.keepID },
             }
           }),
+        ),
       ),
     )
 
