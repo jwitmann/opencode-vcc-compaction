@@ -39,6 +39,11 @@ Context file for AI agents working on the VCC port investigation: can
 - Never run window-filling sessions for threshold tests without explicit user
   approval (disproportionately expensive — see `PROBE.md` Do-not).
 - Never let `probe-plugin/` depend on Operator Memory or touch `~/.operator/state/`.
+- Never convert this workspace to Effect: `probe-plugin/` stays classic
+  Promise style, `compiler/` stays dependency-free with no `effect`
+  dependency (owner decision 2026-11-19). The canonical-runtime note in
+  `docs/plans/vcc-compiler.md` binds only a downstream adapter, never code
+  in this repo.
 - Never commit this workspace into `operator-memory` (`feat/context-management`
   stays `feat(core)` + `feat(opencode-v2)` only, per `README.md`).
 - Act on side findings mid-task — park a one-liner in `docs/NOTES.md`
