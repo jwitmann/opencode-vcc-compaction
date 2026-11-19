@@ -15,7 +15,7 @@ Port of [`dsh-compaction-vcc`](https://github.com/tingfeng-droid/dsh-compaction-
 directly against `@opencode/plugin/effect` (canonical runtime), so no
 convert-to-Effect task ever arises. The VCC reference engine is vendored
 byte-identical from `../compiler/` into `./engine/` (sync-enforced).
-Version: `opencode-vcc-compaction@0.1.0`.
+Version: `opencode-vcc-compaction@0.2.0`.
 
 ## How it works
 
@@ -231,16 +231,38 @@ How the budgets behave:
 - `keepMessages` counts request messages, not entries: the host rebuilds
   the verbatim tail from `keepID`, the summary covers everything older.
 
-## Seq pointers and recall
+## Seq pointers, recall, and search
 
 `(seq N)` ordinals are 1-based positions over the compiled messages
-(skipped messages consume no seq), not durable host ids — the hook only
-sees the request window. Every checkpoint heads with a short RECALL guide
-telling the model how to recover elided content; OpenCode-native recall
-tools (resolving message/part IDs against the session log) are
-follow-up work, recorded in [the plan](../archive/plans/vcc-plugin.md).
-v0.1.0 ships the engine: deterministic summary + keep-tail, with every
-cut marked and pointing at its source.
+(skipped messages consume no seq), not durable host ids. Every checkpoint
+heads with a short RECALL guide telling the model how to recover elided
+content; the `/vcc-recall` and `/vcc-search` commands below resolve those
+pointers against the per-session snapshot.
+
+## Commands
+
+Server-only slash commands (no `./tui`): `/vcc-recall`, `/vcc-search`,
+`/vcc-status`. Command invocations cannot read history directly, so the
+`context` hook (with `compaction` as backup) persists a cleaned snapshot
+of the session's messages to `ctx.storage` (`vcc-snapshot/<sessionID>`,
+growth-guarded by version/count/lastID); the commands read that
+snapshot. A snapshot written on every context event is fresh enough for
+recall/search; `/vcc-status` reports its age.
+
+- `/vcc-recall <seq selection> | result <ref> | checkpoint <ref>` —
+  restore exact original content, e.g. `/vcc-recall 3-7`,
+  `/vcc-recall result 3`, `/vcc-recall checkpoint 1`. Replies with the
+  recalled text plus an event/token count header.
+- `/vcc-search <keyword-or-regex>` — e.g. `/vcc-search login`.
+  Replies with `(seq N)` hits plus a recall call-to-action.
+- `/vcc-status` — engine revision, resolved config
+  (`maxTokens`/`keepMessages`/reasoning/hide/noise counts), and snapshot
+  freshness (version, message count, lastID, age).
+
+Results feed back through `session.prompt`, so the agent presents them.
+A nothing-to-do stays silent (log line only, never an empty agent turn);
+a storage read failure replies explicitly ("snapshot read failed, try
+again in a moment"), never a misleading "none yet".
 
 ## Message mapping
 
@@ -267,10 +289,16 @@ and control bytes are stripped deterministically before counting.
 ## Layout
 
 - `index.ts` — thin Effect wiring only (`Plugin.define` + `Effect.fn` +
-  `session.hook`). No logic beyond config → `compileCompaction` → assign.
+  `session.hook` + `command.transform`). No logic beyond config →
+  `compileCompaction` → assign, snapshot remember, and the three
+  `/vcc-*` command registrations.
 - `adapter.mjs` — pure mapping + compile (unit-tested, no host). See its
   header for the vocabulary mapping (tool args, tool-result projection,
   checkpoint synthesis, skip cases, tool-link seam).
+- `snapshot.mjs` — snapshot store + command policy (clean/build,
+  growth-guarded write check, recall/search arg parsing, selection
+  resolution, reply formatters, status text). Unit-tested; the only
+  module `index.ts` imports command-side.
 - `engine/` — the VCC reference engine vendored byte-identical from
   `../compiler/` (`tokenize`, `compile`, `recall`, `session-compat`,
   `search`). Ships inside the npm tarball; fixes land in `../compiler/`
@@ -292,11 +320,11 @@ from a scratch project, never a real one.
 
 ## Status and limits
 
-- v0.1.0 ships the hook + verbatim summary only: no slash commands, no
-  recall tools. `(seq N)`
+- v0.2.0 ships the hook + three server-only slash commands
+  (`/vcc-recall`, `/vcc-search`, `/vcc-status`; no `./tui`). `(seq N)`
   pointers are 1-based ordinals over the compiled messages (skipped
-  messages consume no seq); OpenCode-native
-  recall (message/part-ID resolution) is follow-up work.
+  messages consume no seq); recall/search resolve them against the
+  per-session snapshot.
 - Multi-result tool messages link the first result id only
   (`message.toolCallId` carries one id); the rest still compile as text.
 - `effect` comes from the host instance — declared as peer
