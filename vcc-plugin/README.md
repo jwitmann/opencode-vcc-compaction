@@ -26,19 +26,26 @@ compaction. Never a broken summary.
 
 ## Install
 
-Local path (this repo):
+Not on npm yet — install from a clone (npm publish is blocked on
+bundling `../compiler/*` into this package; see Status and limits).
+Clone `https://github.com/jwitmann/opencode-vcc-compaction` and
+register the local path:
 
 ```jsonc
 // opencode.jsonc
 {
   "plugins": [
     {
-      "package": "/abs/path/to/vcc-plugin",
+      "package": "/abs/path/to/opencode-vcc-compaction/vcc-plugin",
       "options": { "maxTokens": 8192, "keepMessages": 6 },
     },
   ],
 }
 ```
+
+Because the adapter imports the engine via the relative path
+`../compiler/*`, the plugin must be installed as this directory inside
+a full repo checkout — copying `vcc-plugin/` out alone will break.
 
 Options are the engine budgets plus behavior (all optional, upstream
 defaults shown — see `adapter.mjs` `DEFAULT_PLUGIN_CONFIG`):

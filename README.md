@@ -1,28 +1,55 @@
-# vcc-port — dsh-compaction-vcc → OpenCode investigation
+# opencode-vcc-compaction — deterministic LLM-free compaction for OpenCode V2
 
-Question: can [tingfeng-droid/dsh-compaction-vcc](https://github.com/tingfeng-droid/dsh-compaction-vcc) (LLM-free deterministic compaction for DSH, MIT, fork of TsFreddie/dsh-compaction-instant) be ported to OpenCode V2?
+Deterministic, LLM-free compaction for OpenCode V2 — verbatim summaries with no model call. Port of [`dsh-compaction-vcc`](https://github.com/tingfeng-droid/dsh-compaction-vcc) (MIT, itself a fork of `TsFreddie/dsh-compaction-instant`), written directly against `@opencode/plugin/effect`.
 
-This folder is a **disposable probe workspace**. It is not part of `operator-memory` and must never be committed there (`feat/context-management` stays `feat(core)` + `feat(opencode-v2)` only).
+On every `compaction` hook the plugin compiles history with a deterministic region compiler and sets `event.result = { summary, metadata: { keepID } }`. The host takes its `fromHook` short-circuit: the summary persists verbatim, the tail rebuilds from `keepID`, and **no model call is billed** on the compaction path — proven live on host v2.3.2 (see `docs/research/vcc-plugin-live-verdict.md`).
 
 ## Layout
 
-- `probe-plugin/` — throwaway OpenCode V2 plugin that observes the live API. Must not depend on Operator Memory.
-- `probe-project/` — scratch Brain-free project the probe runs against (own `opencode.jsonc` registering `../probe-plugin`).
-- `probe-results/` — JSONL observations, one file per probe. Evidence for resolutions.
-- `vendor/` — reference checkout notes / tgz of `dsh-compaction-vcc` for offline reading. Do not `npm install` DSH host deps here.
-- `PROBE.md` — the one probe that decides everything (compaction `result` override).
-- `REUSE.md` — what to lift verbatim vs. mechanism-swap.
+- `vcc-plugin/` — the product: `vcc-compaction@0.1.0` (Effect-direct hook + pure adapter + unit tests). Start here: [`vcc-plugin/README.md`](vcc-plugin/README.md).
+- `compiler/` — deterministic reference engine (stages 1–4, verbatim port, dependency-free). Imported by the adapter via relative path.
+- `probe-plugin/` + `probe-project/` + `probe-results/` — the throwaway probe that decided everything (Branch A/B live runs, committed JSONL evidence). History, not the foundation — do not extend.
+- `docs/research/` — verdicts: [`compaction-probe-verdict.md`](docs/research/compaction-probe-verdict.md) (closes `PROBE.md`), [`vcc-plugin-live-verdict.md`](docs/research/vcc-plugin-live-verdict.md) (plugin live PASS).
+- `docs/plans/` — build records for the compiler port and the plugin.
+- `demo-project/` — scratch harness registering `../vcc-plugin` (never run from a real project).
+- `PROBE.md` / `REUSE.md` — the original probe spec and reuse inventory (closed, kept as record).
+- `AGENTS.md` — contributor contract for AI agents.
 
-## How to use (next session)
+## Install
 
-1. Start a **new session** with cwd `/tmp/opencode/vcc-port` (not `/home/jerome/operator-memory`).
-2. Read `PROBE.md`, then `REUSE.md`.
-3. Record `opencode --version` + resolved `@opencode/plugin` version with every result.
-4. Resolutions go to `/home/jerome/operator-context-management/docs/open-questions.md` → `spec.md` / `decisions.md` per `docs/probes.md` Phase 3.
+Not on npm yet (blocked on bundling `../compiler/*` into the package — see limits). For now, clone and register the local path:
 
-## Background already established (2026-11-19, lead session)
+```jsonc
+// opencode.jsonc
+{
+  "plugins": [
+    {
+      "package": "/abs/path/to/opencode-vcc-compaction/vcc-plugin",
+      "options": { "maxTokens": 8192, "keepMessages": 6 },
+    },
+  ],
+}
+```
 
-- OpenCode V2 has no `ctx.compaction` seam. Compaction = `ctx.session.compact()` + `session.hook("compaction")` shaping `system` only; host replaces history with one `user`-role summary message. `context` hook does not re-enter for compaction requests.
-- Prior verdict on this base (probes.md Phase 2 + impl verification): setting `result` in the compaction hook **replaces history with the note instead of skipping compaction** — rejected once. Re-probe on current host before trusting it.
-- Operator `contextManagement` already implements the VCC *pattern* (trim → omission notice + disk store → `operator:read_omitted` → receipt). VCC would be a stronger `compact` strategy inside that shell.
-- DSH-specific bits that do NOT port: isolate realms, alias-masquerade install, `cordis.patch.yml`, `tokenMeter` singleton, `compaction/summary {provider}` event, `elideCheckpointInjectedBodies` + `dsh-tingfeng` `source.kind` (preamble here re-renders fresh, never a log node).
+Full option table in [`vcc-plugin/README.md`](vcc-plugin/README.md).
+
+## Verify
+
+```sh
+node --check probe-plugin/index.ts && node --check vcc-plugin/index.ts
+node compiler/selftest.mjs
+node vcc-plugin/selftest.mjs
+node scripts/verify-evidence.mjs
+```
+
+Live compaction runs only with explicit approval + explicit `--model`, from a scratch project, never a real one.
+
+## Status and limits
+
+- v1 ships the engine: deterministic summary + keep-tail. `(seq N)` pointers are 1-based ordinals over the compacted messages; OpenCode-native recall (message/part-ID resolution) is follow-up work.
+- When the adapter cannot pick a `keepID` it abstains (`result` unset → host falls back to model compaction). Never a broken summary.
+- `effect` comes from the host instance (peer `effect ^4.0.0`, `@opencode/plugin ^2.0.0`), never bundled.
+
+## License
+
+MIT — see [`LICENSE`](LICENSE).

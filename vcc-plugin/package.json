@@ -3,8 +3,31 @@
   "version": "0.1.0",
   "description": "Deterministic LLM-free compaction summaries for OpenCode V2 (VCC reference engine, Effect-direct hook).",
   "license": "MIT",
+  "author": "Calvados <jerome_witmann@witmanco.net>",
+  "homepage": "https://github.com/jwitmann/opencode-vcc-compaction#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jwitmann/opencode-vcc-compaction.git",
+    "directory": "vcc-plugin"
+  },
+  "bugs": {
+    "url": "https://github.com/jwitmann/opencode-vcc-compaction/issues"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "compaction",
+    "context-management",
+    "deterministic",
+    "llm-free",
+    "effect"
+  ],
   "type": "module",
+  "main": "./index.ts",
   "files": ["index.ts", "adapter.mjs", "README.md"],
+  "engines": {
+    "node": ">=18"
+  },
   "peerDependencies": {
     "@opencode/plugin": "^2.0.0",
     "effect": "^4.0.0"

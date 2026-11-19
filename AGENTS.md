@@ -1,4 +1,4 @@
-# AGENTS.md — opencode-vcc-port
+# AGENTS.md — opencode-vcc-compaction
 
 Context file for AI agents working on the VCC port investigation: can
 [tingfeng-droid/dsh-compaction-vcc](https://github.com/tingfeng-droid/dsh-compaction-vcc)
@@ -58,10 +58,11 @@ Context file for AI agents working on the VCC port investigation: can
 
 - Plan compliance: re-read `PROBE.md`/`REUSE.md` before declaring a task
   done and confirm every requirement was met; fix gaps first.
-- `commands.typecheck`: `node --check probe-plugin/index.ts`.
+- `commands.typecheck`: `node --check probe-plugin/index.ts && node --check vcc-plugin/index.ts`.
 - `commands.test`: `node scripts/verify-evidence.mjs`
   (JSONC configs parse + every JSONL line version-tagged;
-  proven fail-on-mutation 2026-11-19).
+  proven fail-on-mutation 2026-11-19) plus `node compiler/selftest.mjs`
+  and `node vcc-plugin/selftest.mjs` for engine/adapter changes.
 - Evidence standard is `probe-results/*.jsonl` lines (versions on every line)
   plus static source refs (`file:line`). Gate enforcement is `require_review`
   plus the two runnable gates — see `.dev-framework/hardening.md`.
