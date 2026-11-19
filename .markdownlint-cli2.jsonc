@@ -8,5 +8,5 @@
   "globs": ["**/*.md"],
   // Installed scaffolding (.opencode/, .dsh/) and offline notes (vendor/)
   // are not ours to lint.
-  "ignores": ["node_modules/**", "dist/**", ".opencode/**", ".dsh/**", "vendor/**"]
+  "ignores": ["**/node_modules/**", "dist/**", ".opencode/**", ".dsh/**", "vendor/**"]
 }
