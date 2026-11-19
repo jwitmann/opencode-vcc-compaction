@@ -83,6 +83,20 @@ export default Plugin.define({
           }),
       )
 
+    // Command replies must never wake the agent: session.prompt posts a
+    // user message that starts a model turn (the model then narrates the
+    // output), while a synthetic message with resume: false is recorded
+    // and shown without running the agent. Proven live on ses_vcc_live_3
+    // (prompt → chatter turn + extra compaction; synthetic resume:false
+    // → session stays idle).
+    const reply = (input: { sessionID: string }, description: string, text: string) =>
+      ctx.session.synthetic({
+        sessionID: input.sessionID,
+        text,
+        description,
+        resume: false,
+      })
+
     try {
       yield* ctx.session.hook("context", (event) =>
         remember((event as { sessionID: string }).sessionID, (event as { messages: unknown }).messages),
@@ -123,11 +137,11 @@ export default Plugin.define({
                 Effect.sync(() => parseRecallArgs((input.prompt as { text?: unknown })?.text ?? "")),
                 (parsed) => {
                   if ("error" in parsed) {
-                    return ctx.session.prompt({
-                      sessionID: input.sessionID,
-                      text: `**/vcc-recall** — ${parsed.error}`,
-                      delivery: input.delivery,
-                    })
+                    return reply(
+                      input,
+                      "/vcc-recall",
+                      `**/vcc-recall** — ${parsed.error}`,
+                    )
                   }
                   return Effect.flatMap(
                     Effect.catch(
@@ -141,11 +155,11 @@ export default Plugin.define({
                     (stored) => {
                       const classified = classifySnapshotStore(stored as never)
                       if (classified.status === "failed") {
-                        return ctx.session.prompt({
-                          sessionID: input.sessionID,
-                          text: "**/vcc-recall** — snapshot read failed, try again in a moment",
-                          delivery: input.delivery,
-                        })
+                        return reply(
+                          input,
+                          "/vcc-recall",
+                          "**/vcc-recall** — snapshot read failed, try again in a moment",
+                        )
                       }
                       if (classified.status === "empty") {
                         console.log("[opencode-vcc-compaction] vcc-recall: no snapshot yet for this session")
@@ -153,18 +167,18 @@ export default Plugin.define({
                       }
                       const resolved = resolveRecallSelections(classified.messages as never, parsed.type, parsed.id)
                       if (resolved.errors.length > 0 || resolved.selections.length === 0) {
-                        return ctx.session.prompt({
-                          sessionID: input.sessionID,
-                          text: `**/vcc-recall** — ${resolved.errors.join("; ") || "nothing to recall"}`,
-                          delivery: input.delivery,
-                        })
+                        return reply(
+                          input,
+                          "/vcc-recall",
+                          `**/vcc-recall** — ${resolved.errors.join("; ") || "nothing to recall"}`,
+                        )
                       }
                       const recalled = recallFromSnapshot(classified.messages as never, resolved.selections)
-                      return ctx.session.prompt({
-                        sessionID: input.sessionID,
-                        text: formatRecallReply(parsed.type, parsed.id, recalled as never),
-                        delivery: input.delivery,
-                      })
+                      return reply(
+                        input,
+                        "/vcc-recall",
+                        formatRecallReply(parsed.type, parsed.id, recalled as never),
+                      )
                     },
                   )
                 },
@@ -184,11 +198,11 @@ export default Plugin.define({
                 Effect.sync(() => parseSearchArgs((input.prompt as { text?: unknown })?.text ?? "")),
                 (parsed) => {
                   if ("error" in parsed) {
-                    return ctx.session.prompt({
-                      sessionID: input.sessionID,
-                      text: `**/vcc-search** — ${parsed.error}`,
-                      delivery: input.delivery,
-                    })
+                    return reply(
+                      input,
+                      "/vcc-search",
+                      `**/vcc-search** — ${parsed.error}`,
+                    )
                   }
                   return Effect.flatMap(
                     Effect.catch(
@@ -202,11 +216,11 @@ export default Plugin.define({
                     (stored) => {
                       const classified = classifySnapshotStore(stored as never)
                       if (classified.status === "failed") {
-                        return ctx.session.prompt({
-                          sessionID: input.sessionID,
-                          text: "**/vcc-search** — snapshot read failed, try again in a moment",
-                          delivery: input.delivery,
-                        })
+                        return reply(
+                          input,
+                          "/vcc-search",
+                          "**/vcc-search** — snapshot read failed, try again in a moment",
+                        )
                       }
                       if (classified.status === "empty") {
                         console.log("[opencode-vcc-compaction] vcc-search: no snapshot yet for this session")
@@ -216,17 +230,17 @@ export default Plugin.define({
                       try {
                         found = searchSnapshot(classified.messages as never, parsed.pattern)
                       } catch (error) {
-                        return ctx.session.prompt({
-                          sessionID: input.sessionID,
-                          text: `**/vcc-search** — ${error instanceof Error ? error.message : String(error)}`,
-                          delivery: input.delivery,
-                        })
+                        return reply(
+                          input,
+                          "/vcc-search",
+                          `**/vcc-search** — ${error instanceof Error ? error.message : String(error)}`,
+                        )
                       }
-                      return ctx.session.prompt({
-                        sessionID: input.sessionID,
-                        text: formatSearchReply(parsed.pattern, found as never),
-                        delivery: input.delivery,
-                      })
+                      return reply(
+                        input,
+                        "/vcc-search",
+                        formatSearchReply(parsed.pattern, found as never),
+                      )
                     },
                   )
                 },
@@ -254,22 +268,22 @@ export default Plugin.define({
                 (stored) => {
                   const classified = classifySnapshotStore(stored as never)
                   if (classified.status === "failed") {
-                    return ctx.session.prompt({
-                      sessionID: input.sessionID,
-                      text: "**/vcc-status** — snapshot read failed, try again in a moment",
-                      delivery: input.delivery,
-                    })
+                    return reply(
+                      input,
+                      "/vcc-status",
+                      "**/vcc-status** — snapshot read failed, try again in a moment",
+                    )
                   }
-                  return ctx.session.prompt({
-                    sessionID: input.sessionID,
-                    text: formatStatusText(
+                  return reply(
+                    input,
+                    "/vcc-status",
+                    formatStatusText(
                       classified.status === "ready" ? classified.stored as never : undefined,
                       config as never,
                       COMPILER_REV as string,
                       Date.now(),
                     ),
-                    delivery: input.delivery,
-                  })
+                  )
                 },
               ),
               (cause) =>

@@ -259,10 +259,12 @@ recall/search; `/vcc-status` reports its age.
   (`maxTokens`/`keepMessages`/reasoning/hide/noise counts), and snapshot
   freshness (version, message count, lastID, age).
 
-Results feed back through `session.prompt`, so the agent presents them.
-A nothing-to-do stays silent (log line only, never an empty agent turn);
-a storage read failure replies explicitly ("snapshot read failed, try
-again in a moment"), never a misleading "none yet".
+Results feed back through a `session.synthetic` message with
+`resume: false`, so the reply is recorded and shown without starting a
+model turn (a `session.prompt` reply would wake the agent into narrating
+the output). A nothing-to-do stays silent (log line only, never an empty
+agent turn); a storage read failure replies explicitly ("snapshot read
+failed, try again in a moment"), never a misleading "none yet".
 
 ## Message mapping
 
