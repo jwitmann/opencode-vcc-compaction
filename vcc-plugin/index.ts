@@ -206,19 +206,43 @@ export default Plugin.define({
           }),
       )
 
+    // True when the context hook below registered: snapshots are then
+    // maintained on every turn and the compaction hook can skip its own
+    // rebuild. When false (host without a context hook), every
+    // compaction must rebuild — `seen` presence alone would go stale
+    // after the first compaction-time write.
+    let snapshotsViaContext = false
     try {
       yield* ctx.session.hook("context", (event) =>
         remember((event as { sessionID: string }).sessionID, (event as { messages: unknown }).messages),
       )
+      snapshotsViaContext = true
     } catch (error) {
       console.warn("[opencode-vcc-compaction] context hook unavailable; snapshots via compaction only:", error)
     }
 
     yield* ctx.session.hook("compaction", (event) =>
       Effect.flatMap(
-        remember((event as { sessionID: string }).sessionID, (event as { messages: unknown }).messages),
-        () =>
-          Effect.sync(() => {
+        // Snapshots land via the context hook on every turn; rebuilding
+        // the same append-only log here would duplicate that work once
+        // per compaction. Skip only when the context path is proven
+        // live (registered above AND this session already seen) —
+        // otherwise rebuild, exactly as before.
+        Effect.sync(
+          () =>
+            snapshotsViaContext && seen.has((event as { sessionID: string }).sessionID),
+        ),
+        (ready) =>
+          Effect.flatMap(
+            ready
+              ? Effect.void
+              : remember(
+                  (event as { sessionID: string }).sessionID,
+                  (event as { messages: unknown }).messages,
+                )
+              : Effect.void,
+            () =>
+              Effect.sync(() => {
             let outcome
             try {
               outcome = compileCompaction(event.messages, config)
