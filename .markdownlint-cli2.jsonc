@@ -1,0 +1,12 @@
+{
+  // Disable rules that conflict with this repo's conventions.
+  "config": {
+    "MD013": false, // line length; docs are hard-wrapped by hand
+    "MD041": false, // first line must be a top-level heading; handled per file
+    "MD060": false // padded table pipes; compact tables used intentionally
+  },
+  "globs": ["**/*.md"],
+  // Installed scaffolding (.opencode/, .dsh/) and offline notes (vendor/)
+  // are not ours to lint.
+  "ignores": ["node_modules/**", "dist/**", ".opencode/**", ".dsh/**", "vendor/**"]
+}

@@ -1,0 +1,17 @@
+# Committed: config, docs, probe sources, evidence.
+# Local-only: scaffolding, live state, secrets.
+node_modules/
+dist/
+.DS_Store
+*.log
+
+# installed project scaffolding + live plugin state (local-only, never committed)
+/.opencode/
+/.dsh/
+
+# local working brain (per user decision 2026-11-19); durable resolutions
+# live in operator-context-management/docs (committed) per Phase 3
+/.operator/
+
+# dev-framework
+/.dev-framework/
