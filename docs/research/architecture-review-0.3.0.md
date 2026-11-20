@@ -102,3 +102,45 @@ write; fixed before commit). Battery green (`node --check`,
 - Open: drop reasoning blocks from the snapshot (they are ~⅓ of parts;
   recall fidelity vs size)? Final numbers + decision after this session
   ends.
+
+## 8. Final real-session data (2026-11-20; phases 3–4 done, session live)
+
+Session `ses_e7eaa04d` ("Improvements and next steps", operator-memory):
+
+- 9037 message rows: 342 user / 3666 assistant / 2290 compaction /
+  2638 idle / 76 synthetic / 18 system / 6 model-switched /
+  1 agent-switched. The 2290 compaction rows confirm the lifecycle:
+  `remember` rebuilds the snapshot from the live log each turn, and
+  each host compaction truncates the log — so snapshot size tracks
+  the *inter-compaction window*, not lifetime. Post-compaction the
+  snapshot is 5 cleaned messages / 45,559 bytes.
+- Real density holds across sessions: peak survivors 195KB@34 msgs
+  (5.7KB/msg, "Review recall/search port"), 185KB@30 (6.2KB/msg),
+  177KB@40 (4.4KB/msg) — all operator-memory review sessions. Rule
+  of thumb stands: **~4.5–6KB per cleaned message**, so the 1MB
+  single-write mark sits at **~160–220 inter-compaction messages**.
+- Tripwire (1MB) has no surviving breach: max snapshot on disk is
+  195KB. But absence is unverifiable two ways: (a) a transient
+  >1MB peak between compactions leaves no kv trace (rebuild shrinks
+  it); (b) plugin `console.warn` never reaches `opencode.log`
+  (0 plugin lines in 27MB of host log), so "0 firings in the log"
+  proves nothing about whether it fired.
+
+## 9. Decision: tripwire suffices; incremental parked; reasoning kept
+
+- **No incremental appends.** Per-write size is self-limiting via
+  host compaction cadence (empirical ceiling ~493KB interim peak,
+  ~195KB max survivor, both <1MB at ~2× headroom). Lifetime-bytes
+  O(n²) remains, but it is a wear smell, not a correctness or
+  latency risk at these sizes. Revisit only on an observed >1MB
+  write.
+- **Keep reasoning blocks.** They are ~⅓ of parts at peak but bytes-
+  small outside tool-result-heavy stretches (66B of 45KB
+  post-compaction); dropping them would trade recall fidelity — the
+  feature's whole point — for a fraction of a ~200KB envelope.
+- **Recommended next step (separate task, needs owner sign-off):**
+  make tripwire firings queryable — e.g. record `maxWriteBytes` /
+  `lastTripwireAt` in the envelope or a kv counter. Today a firing
+  is visible only on live TUI stderr, so the next revisit would be
+  evidence-blind again. Small product-behavior change: do not bundle
+  silently, propose first.
