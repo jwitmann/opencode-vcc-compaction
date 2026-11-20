@@ -144,3 +144,12 @@ Session `ses_e7eaa04d` ("Improvements and next steps", operator-memory):
   is visible only on live TUI stderr, so the next revisit would be
   evidence-blind again. Small product-behavior change: do not bundle
   silently, propose first.
+- **Implemented 2026-11-20 (owner-approved same day):** per-session
+  `vcc-stats/<sessionID>` kv (`version`, `maxWriteBytes`, `maxAt`,
+  `tripCount`, `lastTripwireAt`), folded purely by
+  `updateWatchStats` (snapshot.mjs) and persisted by `remember`
+  only on new max or trip — lazy-loaded once per session into the
+  `seen` entry, every failure path warn-and-continue. Envelope,
+  recall/search/RPC readers unchanged. Next revisit queries
+  `kv WHERE key LIKE '%:vcc-stats/%'` instead of inferring from
+  survivors.

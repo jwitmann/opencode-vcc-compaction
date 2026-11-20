@@ -35,6 +35,7 @@ import {
   snapshotMessageToRecall,
   snapshotNeedsWrite,
   snapshotWriteBytes,
+  updateWatchStats,
 } from "./snapshot.mjs";
 import { parseSeqSpec, recallSession, resolveRecallReference } from "./engine/recall.mjs";
 import { sessionEventAt, sessionEvents } from "./engine/session-compat.mjs";
@@ -226,6 +227,36 @@ check(
   true,
 );
 check("snapshot write bytes unserializable never trips", snapshotWriteBytes((() => { const circular = {}; circular.self = circular; return circular; })()), 0);
+check(
+  "watch stats first write folds to max",
+  updateWatchStats(undefined, 1234, 1000),
+  { stats: { version: 1, maxWriteBytes: 1234, maxAt: 1000, tripCount: 0, lastTripwireAt: null }, changed: true },
+);
+check(
+  "watch stats smaller write is quiet",
+  updateWatchStats({ version: 1, maxWriteBytes: 1234, maxAt: 1000, tripCount: 0, lastTripwireAt: null }, 100, 2000),
+  { stats: { version: 1, maxWriteBytes: 1234, maxAt: 1000, tripCount: 0, lastTripwireAt: null }, changed: false },
+);
+check(
+  "watch stats trip records firing",
+  updateWatchStats(undefined, MAX_SNAPSHOT_WRITE_BYTES + 1, 3000),
+  { stats: { version: 1, maxWriteBytes: MAX_SNAPSHOT_WRITE_BYTES + 1, maxAt: 3000, tripCount: 1, lastTripwireAt: 3000 }, changed: true },
+);
+check(
+  "watch stats trips accumulate",
+  updateWatchStats({ version: 1, maxWriteBytes: MAX_SNAPSHOT_WRITE_BYTES + 5, maxAt: 3000, tripCount: 2, lastTripwireAt: 3000 }, MAX_SNAPSHOT_WRITE_BYTES + 1, 4000),
+  { stats: { version: 1, maxWriteBytes: MAX_SNAPSHOT_WRITE_BYTES + 5, maxAt: 3000, tripCount: 3, lastTripwireAt: 4000 }, changed: true },
+);
+check(
+  "watch stats malformed previous folds from zero",
+  updateWatchStats("junk", 50, 7),
+  { stats: { version: 1, maxWriteBytes: 50, maxAt: 7, tripCount: 0, lastTripwireAt: null }, changed: true },
+);
+check(
+  "watch stats zero-byte write stays quiet",
+  updateWatchStats(undefined, 0, 7),
+  { stats: { version: 1, maxWriteBytes: 0, maxAt: null, tripCount: 0, lastTripwireAt: null }, changed: false },
+);
 
 const session = makeSnapshotSession(snap.messages);
 const events = sessionEvents(session);

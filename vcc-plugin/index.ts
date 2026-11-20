@@ -7,6 +7,7 @@ import {
   COMPILER_REV,
   MAX_SNAPSHOT_WRITE_BYTES,
   SNAPSHOT_KEY_PREFIX,
+  WATCH_STATS_KEY_PREFIX,
   buildSnapshot,
   classifySnapshotStore,
   formatRecallReply,
@@ -19,6 +20,7 @@ import {
   searchSnapshot,
   snapshotNeedsWrite,
   snapshotWriteBytes,
+  updateWatchStats,
 } from "./snapshot.mjs"
 
 // opencode-vcc-compaction: deterministic LLM-free compaction summaries.
@@ -30,7 +32,8 @@ import {
 // keep cut), result stays unset and the host falls back to model compaction.
 // Alongside, context + compaction hooks snapshot cleaned raw messages
 // (snapshot.mjs: growth-guarded by version/count/lastID, >1MB single-write
-// warn tripwire, every failure path warn-and-continue) so the vcc-
+// warn tripwire + queryable per-session watch stats (`vcc-stats/` key:
+// maxWriteBytes, tripCount), every failure path warn-and-continue) so the vcc-
 // commands can recall/search history the command ctx cannot read directly.
 //
 // Effect-direct by owner decision: written against @opencode/plugin/effect
@@ -77,7 +80,7 @@ export default Plugin.define({
   id: "opencode-vcc-compaction",
   effect: Effect.fn(function* (ctx) {
     const config = buildConfig(ctx.options)
-    const seen = new Map<string, { version: number; count: number; lastID: string | undefined }>()
+    const seen = new Map<string, { version: number; count: number; lastID: string | undefined; stats: unknown; statsLoaded: boolean }>()
 
     const readStored = (sessionID: string, label: string) =>
       Effect.catch(
@@ -175,38 +178,70 @@ export default Plugin.define({
           }),
           (snap) => {
             if (snap === null) return Effect.void
-            const prev = seen.get(sessionID as string)
+            const key = sessionID as string
+            const prev = seen.get(key)
             if (!snapshotNeedsWrite(prev, snap)) return Effect.void
+            const at = Date.now()
             const envelope = {
               version: snap.version,
               messages: snap.messages,
               count: snap.count,
               ...(snap.lastID === undefined ? {} : { lastID: snap.lastID }),
-              writtenAt: Date.now(),
+              writtenAt: at,
             }
             const writeBytes = snapshotWriteBytes(envelope)
-            return Effect.catch(
-              Effect.flatMap(
-                writeBytes > MAX_SNAPSHOT_WRITE_BYTES
-                  ? Effect.sync(() => {
-                      console.warn(
-                        `[opencode-vcc-compaction] snapshot write large: session ${sessionID} count=${snap.count} ~${writeBytes} bytes (O(n²) watch: full envelope rewritten per turn)`,
-                      )
-                    })
-                  : Effect.void,
-                () =>
-                  Effect.flatMap(
-                    ctx.storage.set(`${SNAPSHOT_KEY_PREFIX}${sessionID}`, envelope),
-                    () =>
+            // Watch stats live in their own kv key (not the envelope, so
+            // recall/search/RPC readers never change shape): lazy-load once
+            // per session, fold purely, persist only on new max or trip.
+            const loadStats =
+              prev?.statsLoaded === true
+                ? Effect.succeed(prev.stats)
+                : Effect.catch(
+                    ctx.storage.get(`${WATCH_STATS_KEY_PREFIX}${key}`),
+                    (error) =>
                       Effect.sync(() => {
-                        seen.set(sessionID as string, {
-                          version: snap.version,
-                          count: snap.count,
-                          lastID: snap.lastID,
-                        })
+                        console.warn("[opencode-vcc-compaction] watch stats read failed; folding from zero:", error)
+                        return undefined
                       }),
-                  ),
-              ),
+                  )
+            return Effect.catch(
+              Effect.flatMap(loadStats, (storedStats) => {
+                const fold = updateWatchStats(storedStats, writeBytes, at)
+                const recordStats = fold.changed
+                  ? Effect.catch(
+                      ctx.storage.set(`${WATCH_STATS_KEY_PREFIX}${key}`, fold.stats),
+                      (error) =>
+                        Effect.sync(() => {
+                          console.warn("[opencode-vcc-compaction] watch stats write failed:", error)
+                        }),
+                    )
+                  : Effect.void
+                return Effect.flatMap(
+                  writeBytes > MAX_SNAPSHOT_WRITE_BYTES
+                    ? Effect.sync(() => {
+                        console.warn(
+                          `[opencode-vcc-compaction] snapshot write large: session ${sessionID} count=${snap.count} ~${writeBytes} bytes (O(n²) watch: full envelope rewritten per turn)`,
+                        )
+                      })
+                    : Effect.void,
+                  () =>
+                    Effect.flatMap(
+                      ctx.storage.set(`${SNAPSHOT_KEY_PREFIX}${key}`, envelope),
+                      () =>
+                        Effect.flatMap(recordStats, () =>
+                          Effect.sync(() => {
+                            seen.set(key, {
+                              version: snap.version,
+                              count: snap.count,
+                              lastID: snap.lastID,
+                              stats: fold.stats,
+                              statsLoaded: true,
+                            })
+                          }),
+                        ),
+                    ),
+                )
+              }),
               (error) =>
                 Effect.sync(() => {
                   console.warn("[opencode-vcc-compaction] snapshot write failed:", error)

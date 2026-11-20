@@ -335,6 +335,43 @@ export function snapshotWriteBytes(envelope) {
   }
 }
 
+export const WATCH_STATS_VERSION = 1;
+
+/** Storage key prefix; full key is `${WATCH_STATS_KEY_PREFIX}${sessionID}`. */
+export const WATCH_STATS_KEY_PREFIX = "vcc-stats/";
+
+/**
+ * Fold one snapshot write into the O(n²) watch stats.
+ * Pure; malformed previous stats fold from zero (fail-soft, like every
+ * snapshot read path). Kept in a separate kv key so the snapshot envelope
+ * (and its recall/search/RPC readers) never changes shape.
+ * @param previous - stored stats value (or undefined on first write).
+ * @param writeBytes - serialized bytes of the write being recorded.
+ * @param now - current epoch ms.
+ * @returns `{ stats, changed }`: changed when a new max landed or the
+ * tripwire fired — the only cases the caller persists.
+ */
+export function updateWatchStats(previous, writeBytes, now) {
+  const prev = previous !== null && typeof previous === "object" ? previous : {};
+  const prevMax = typeof prev.maxWriteBytes === "number" && prev.maxWriteBytes > 0 ? prev.maxWriteBytes : 0;
+  const prevTrips = typeof prev.tripCount === "number" && prev.tripCount > 0 ? Math.floor(prev.tripCount) : 0;
+  const prevTripAt = typeof prev.lastTripwireAt === "number" ? prev.lastTripwireAt : null;
+  const prevMaxAt = typeof prev.maxAt === "number" ? prev.maxAt : null;
+  const bytes = typeof writeBytes === "number" && writeBytes > 0 ? writeBytes : 0;
+  const tripped = bytes > MAX_SNAPSHOT_WRITE_BYTES;
+  const newMax = bytes > prevMax;
+  return {
+    stats: {
+      version: WATCH_STATS_VERSION,
+      maxWriteBytes: newMax ? bytes : prevMax,
+      maxAt: newMax ? now : prevMaxAt,
+      tripCount: prevTrips + (tripped ? 1 : 0),
+      lastTripwireAt: tripped ? now : prevTripAt,
+    },
+    changed: newMax || tripped,
+  };
+}
+
 /**
  * Map one cleaned part to a recall block.
  * @param part - cleaned part.
