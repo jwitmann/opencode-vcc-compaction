@@ -74,3 +74,14 @@ fix the quirk at adapter time (documented deviation, owner approval needed).
 - Wrap `ctx.command.transform` registration in try/warn-and-skip; probe via
   `ctx.command.list()`. Same fail-safe posture as the hook (never break the
   session when the command door is shut).
+
+## Correction (recorded, not hidden; 2026-11-20)
+
+The "open seq-semantics risk" above is resolved at adapter time, as the
+paragraph allowed: `searchSnapshot` (`vcc-plugin/snapshot.mjs`) aligns the
+verbatim `searchSession` positional scan, first with a dummy seq-0 pad
+(shipped 0.2.0/0.3.0), then — after a parked finding proved the pad could
+match patterns and steal a hit-slot plus budget — with an empty index-0
+hole the engine skips via its own `event === undefined` guard (fix
+committed 2026-11-20; vectors in `vcc-plugin/selftest.mjs`). No engine
+fork, no shape change.
