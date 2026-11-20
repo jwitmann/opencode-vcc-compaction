@@ -7,6 +7,30 @@ Single source: the tag-triggered workflow publishes each version's
 section as the GitHub release notes, so this file and the release
 page never diverge.
 
+## [v0.3.1] - 2026-11-20
+
+### Features
+
+- host-native toast attribution via sessionID; dialog broadcast declared ([`7a8b040`](https://github.com/jwitmann/opencode-vcc-compaction/commit/7a8b0405bc2b26c63cca974b5b5084a6b83c9303))
+- snapshot >1MB write tripwire with interim real-density note ([`d83c408`](https://github.com/jwitmann/opencode-vcc-compaction/commit/d83c4087c300518ee2b2efb41874346991408e82))
+- queryable O(N2) watch stats per session (vcc-stats key) ([`e421c02`](https://github.com/jwitmann/opencode-vcc-compaction/commit/e421c026220e5963b5ceb84f310467c5ecaf3d6d))
+
+### Fixes
+
+- remove stray ternary colon breaking host plugin build ([`526e0a3`](https://github.com/jwitmann/opencode-vcc-compaction/commit/526e0a3f5c04280411f566b69712f2dd14810b50))
+- searchSnapshot index-0 hole steals no hit slot or budget ([`49587c6`](https://github.com/jwitmann/opencode-vcc-compaction/commit/49587c6fd95c55bc9f1754991b45087dba491878))
+
+### Documentation
+
+- sync version references to 0.3.0 post-release ([`10a5f17`](https://github.com/jwitmann/opencode-vcc-compaction/commit/10a5f179af276d6ac6186547b6534d32ed03e1ba))
+- post-session O(N2) revisit — tripwire suffices, incremental parked ([`7e911aa`](https://github.com/jwitmann/opencode-vcc-compaction/commit/7e911aa913c81850047f8628c6a3e44cc437693f))
+- record seq-semantics resolution as dated correction note ([`b4aac47`](https://github.com/jwitmann/opencode-vcc-compaction/commit/b4aac479eb8b4326158dfac68d988801f203ede7))
+
+### Other
+
+- skip redundant snapshot rebuild in compaction hook ([`d8f6de7`](https://github.com/jwitmann/opencode-vcc-compaction/commit/d8f6de77d6597733c63b9517fc3d97240d750ec2))
+- publish via npm Trusted Publishing (OIDC), drop NPM_TOKEN ([`55d4c2d`](https://github.com/jwitmann/opencode-vcc-compaction/commit/55d4c2d3f2f07877379249a2cbd2c94f855f9aaa))
+
 ## [v0.3.0] - 2026-11-19
 
 ### Features
