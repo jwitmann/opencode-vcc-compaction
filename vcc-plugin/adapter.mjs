@@ -30,6 +30,12 @@
  *   history at `message.id === keepID`). When no id exists at/after the
  *   cut, `compileCompaction` returns undefined and the hook abstains —
  *   the host falls back to model compaction. Never a broken summary.
+ * - The emitted summary is wrapped in one HTML `<details>` layer
+ *   (collapsed by default in renderers that fold it; harmless prose
+ *   elsewhere). `toNode` strips exactly one wrapper layer from a prior
+ *   checkpoint on re-entry, so repeated compactions never nest — the
+ *   invariant is single-layer, and a shape mismatch keeps the text
+ *   verbatim (fail-safe, never a dropped checkpoint).
  */
 import {
   COMPILER_REV,
@@ -145,6 +151,43 @@ function toBlock(part) {
 }
 
 /**
+ * Wrap one compiled summary in a single HTML `<details>` layer so
+ * renderers that fold it (DSH does) collapse the checkpoint instead of
+ * flooding the transcript. Renderers without folding show the tags as
+ * harmless prose; token cost is unchanged (display-only).
+ * @param body - framed checkpoint text.
+ * @param label - single-line summary label (must be non-empty: the
+ *   unwrapper rejects empty/multiline labels, so the round-trip is exact
+ *   only for labels that satisfy this).
+ * @returns wrapped text (inverse of `unwrapCheckpointSummary` for valid labels).
+ */
+export function wrapCheckpointSummary(body, label) {
+  return `<details>\n<summary>${label}</summary>\n\n${body}\n\n</details>`;
+}
+
+/**
+ * Strip one wrapper layer from a prior checkpoint on re-entry.
+ * Accepts only our exact shape with a single-line label; anything else
+ * (plain text, host-edited, mangled) passes through verbatim so a
+ * checkpoint is never dropped or rewritten by a guess.
+ * @param text - prior checkpoint body (possibly wrapped).
+ * @returns inner body, or the input unchanged.
+ */
+export function unwrapCheckpointSummary(text) {
+  if (typeof text !== "string") return text;
+  const open = "<details>\n<summary>";
+  const mid = "</summary>\n\n";
+  const close = "\n\n</details>";
+  if (!text.startsWith(open)) return text;
+  const labelEnd = text.indexOf(mid, open.length);
+  if (labelEnd === -1) return text;
+  const label = text.slice(open.length, labelEnd);
+  if (label.length === 0 || label.includes("\n")) return text;
+  if (!text.endsWith(close)) return text;
+  return text.slice(labelEnd + mid.length, text.length - close.length);
+}
+
+/**
  * Map one request message to a compiler node, or null to skip it.
  * @param message - OpenCode request message (`{ id?, role, content }`).
  * @param seq - 1-based ordinal for this message.
@@ -157,7 +200,8 @@ export function toNode(message, seq) {
   if (message.role === "assistant") {
     const live = message.content.filter((block) => block !== null && block !== undefined);
     if (live.length === 1 && live[0].type === "compaction") {
-      const text = live[0].text;
+      const raw = live[0].text;
+      const text = unwrapCheckpointSummary(raw);
       if (typeof text !== "string" || text.length === 0) return null;
       return { seq, message: { role: "user", content: [{ type: "text", text }], source: { kind: "compact-checkpoint" } } };
     }
@@ -257,8 +301,9 @@ export function compileCompaction(messages, config = buildConfig({})) {
   const footerLine = region.capped === true
     ? [`[cap enforced at ${config.maxTokens} entry tokens]`]
     : undefined;
-  const summary = frameCheckpoint(region.entries, headerLine, undefined, footerLine)
+  const body = frameCheckpoint(region.entries, headerLine, undefined, footerLine)
     .map((block) => block.text)
     .join("\n\n");
+  const summary = wrapCheckpointSummary(body, `compaction checkpoint: ${nodes.length} messages -> ${region.entries.length} entries`);
   return { summary, keepID, stats: region.stats, capped: region.capped };
 }

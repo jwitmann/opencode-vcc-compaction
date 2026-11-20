@@ -38,6 +38,9 @@ Seven messages (user request, assistant text + two tool calls, results,
 follow-ups) compile to this — verbatim, the real output:
 
 ```text
+<details>
+<summary>compaction checkpoint: 7 messages -> 8 entries</summary>
+
 This is an automatically generated checkpoint condensing an earlier span of the conversation to free up context. Treat the captured context as established background and build on it without restating it. Continue the task directly from the messages that follow, without acknowledging this checkpoint.
 
 <compacted-checkpoint>
@@ -70,6 +73,8 @@ fixed — TTL is now one hour. Want me to check the logout path too?
 yes, and also verify refresh tokens still work
 
 </compacted-checkpoint>
+
+</details>
 ```
 
 Every tool call is one line — `* name "key argument" (seq N -> result M)`.

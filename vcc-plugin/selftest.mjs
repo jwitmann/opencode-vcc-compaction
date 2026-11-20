@@ -18,6 +18,8 @@ import {
   pickKeepID,
   projectResultValue,
   toNode,
+  unwrapCheckpointSummary,
+  wrapCheckpointSummary,
 } from "./adapter.mjs";
 import {
   MAX_SNAPSHOT_WRITE_BYTES,
@@ -198,6 +200,63 @@ check("adapter deterministic double-run", normalize(runSuite()), FIRST);
 check(
   "noise patterns compile to RegExp",
   buildConfig({ noisePatterns: ["a+"] }).noisePatterns[0] instanceof RegExp,
+  true,
+);
+check(
+  "checkpoint wrap is one details layer with identical inner",
+  (() => {
+    const inner = "line one\n\nline two";
+    const wrapped = wrapCheckpointSummary(inner, "label here");
+    return wrapped.startsWith("<details>\n<summary>label here</summary>\n\n")
+      && wrapped.endsWith("\n\n</details>")
+      && unwrapCheckpointSummary(wrapped) === inner;
+  })(),
+  true,
+);
+check(
+  "checkpoint unwrap passes foreign text through",
+  [
+    unwrapCheckpointSummary("plain text"),
+    unwrapCheckpointSummary(""),
+    unwrapCheckpointSummary("<details>\nno summary line\n\nbody\n\n</details>"),
+    unwrapCheckpointSummary("<details>\n<summary>multi\nline</summary>\n\nbody\n\n</details>"),
+    unwrapCheckpointSummary("<details>\n<summary>x</summary>\n\nbody, no close"),
+    unwrapCheckpointSummary(null),
+  ],
+  [
+    "plain text",
+    "",
+    "<details>\nno summary line\n\nbody\n\n</details>",
+    "<details>\n<summary>multi\nline</summary>\n\nbody\n\n</details>",
+    "<details>\n<summary>x</summary>\n\nbody, no close",
+    null,
+  ],
+);
+check(
+  "wrapped checkpoint re-parses to the same node",
+  (() => {
+    const body = "prior summary body";
+    const plain = toNode({ role: "assistant", content: [{ type: "compaction", text: body }] }, 9);
+    const wrapped = toNode({ role: "assistant", content: [{ type: "compaction", text: wrapCheckpointSummary(body, "label") }] }, 9);
+    return JSON.stringify(plain) === JSON.stringify(wrapped);
+  })(),
+  true,
+);
+check(
+  "compiled summary stays single-layer across compactions",
+  (() => {
+    const count = (text, token) => text.split(token).length - 1;
+    const first = compileCompaction(MSGS, buildConfig({})).summary;
+    const once = count(first, "<details>") === 1 && count(first, "</details>") === 1;
+    const pointers = first.includes("(seq 2 -> result 3)") && first.includes("RECALL:");
+    const second = compileCompaction([
+      { id: "c0", role: "assistant", content: [{ type: "compaction", text: first }] },
+      { id: "u9", role: "user", content: [{ type: "text", text: "follow-up" }] },
+    ], buildConfig({})).summary;
+    const stillOnce = count(second, "<details>") === 1 && count(second, "</details>") === 1;
+    const priorSurvived = second.includes("login");
+    return once && pointers && stillOnce && priorSurvived;
+  })(),
   true,
 );
 
