@@ -5,8 +5,10 @@ name: CI
 # directly and the npm publish runs from ./vcc-plugin. First tag push
 # claims the `opencode-vcc-compaction` name (manual publish never worked in the
 # owner's setup); afterwards every tag push publishes that version.
-# Requires the `NPM_TOKEN` secret (granular Read+write token, same recipe
-# as opencode-dev-framework).
+# Auth is npm Trusted Publishing (GitHub OIDC): the publish job carries
+# `id-token: write` and no secret. One-time setup in the npm package
+# settings (Trusted Publisher -> this repo + ci.yml); afterwards
+# `npm publish` mints a short-lived token automatically.
 
 on:
   push:
@@ -51,10 +53,11 @@ jobs:
           node-version: 26
           registry-url: https://registry.npmjs.org
 
+      # No auth secret: Trusted Publishing (OIDC) mints a short-lived
+      # token automatically. Requires the Trusted Publisher entry on
+      # the npm package (one-time, npmjs.com package settings).
       - run: npm publish --provenance --access public
         working-directory: vcc-plugin
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   github-release:
     name: GitHub release notes
