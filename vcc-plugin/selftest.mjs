@@ -313,10 +313,26 @@ check("snapshot store classifies failed", classifySnapshotStore({ __vccReadFaile
 check("snapshot store classifies empty", classifySnapshotStore(undefined).status, "empty");
 check("snapshot store classifies ready", classifySnapshotStore({ version: 1, messages: snap.messages, count: snap.count }).status, "ready");
 check(
-  "search omits phantom pad without undercount",
+  "snapshot search summary stays consistent after hole filtering",
   (() => {
     const out = searchSnapshot(snap.messages, "e", { maxSearchHits: 50, maxRecallTokens: 16000 });
     return out.hits.every((hit) => hit.seq !== 0) && out.omitted === out.totalMatches - out.hits.length;
+  })(),
+  true,
+);
+check(
+  "snapshot search index-0 hole steals no hit slot",
+  (() => {
+    const out = searchSnapshot(snap.messages, "e", { maxSearchHits: 1, maxRecallTokens: 16000 });
+    return out.hits.length === 1 && out.hits[0].seq === 1 && out.omitted === out.totalMatches - out.hits.length;
+  })(),
+  true,
+);
+check(
+  "snapshot search never matches the index-0 hole",
+  (() => {
+    const out = searchSnapshot(snap.messages, "session\\.created", { maxSearchHits: 50, maxRecallTokens: 16000 });
+    return out.totalMatches === 0 && out.hits.length === 0;
   })(),
   true,
 );

@@ -31,9 +31,10 @@
  * Search deviation (documented): upstream `search.mjs` scans positionally
  * (`events[seq]` with `event.seq === seq`, 0-based) over the array the
  * session yields, which can never match 1-based seqs. `searchSnapshot`
- * pads a dummy seq-0 entry so the verbatim `searchSession` contract holds,
- * then delegates — no forked search loop to hand-sync. Same hits, honest
- * seqs.
+ * leaves index 0 empty (a hole the engine skips via its own
+ * `event === undefined` guard) so the verbatim `searchSession` contract
+ * holds, then delegates — no forked search loop to hand-sync, no phantom
+ * hit, no stolen hit-slot or budget. Same hits, honest seqs.
  *
  * The session log is append-only: `snapshotNeedsWrite` is a growth guard
  * (version/count/lastID). In-place edits to middle messages are not
@@ -515,8 +516,13 @@ export function recallFromSnapshot(cleanedMessages, selections, maxRecallTokens 
 
 /**
  * Search a snapshot for a pattern by delegating to the verbatim
- * `searchSession`: pad a dummy seq-0 entry so the positional
- * `events[seq]` + `seq === seq` contract holds for 1-based seqs.
+ * `searchSession`: leave index 0 empty (a hole, not a dummy event) so the
+ * positional `events[seq]` + `seq === seq` contract holds for 1-based seqs
+ * while the hole itself is skipped by the engine's own
+ * `event === undefined` guard — it can never match, never consume a
+ * maxSearchHits slot, and never burn search budget. A defensive
+ * seq-0 filter stays on the output in case the vendored engine ever
+ * changes shape.
  * @param cleanedMessages - snapshot `messages`.
  * @param patternSource - raw regex/keyword.
  * @param config - `{ maxSearchHits, maxRecallTokens }` (defaults to engine defaults).
@@ -532,27 +538,28 @@ export function searchSnapshot(cleanedMessages, patternSource, config = {}) {
     : DEFAULT_MAX_RECALL_TOKENS;
   const inner = makeSnapshotSession(cleanedMessages);
   const live = inner.snapshotEvents();
-  const padded = [{ seq: 0, type: "session.created", data: {} }, ...live];
-  const paddedSession = {
+  const aligned = [undefined, ...live];
+  const alignedSession = {
     snapshotEvents() {
-      return padded;
+      return aligned;
     },
     eventAt(seq) {
-      if (seq === 0) return padded[0];
+      if (seq === 0) return undefined;
       return inner.eventAt(seq);
     },
     get events() {
-      return padded;
+      return aligned;
     },
     deriveEventMessage(event) {
-      if (event?.seq === 0) return null;
+      if (event === undefined || event === null) return null;
       return inner.deriveEventMessage(event);
     },
   };
-  const out = searchSession(paddedSession, patternSource, { maxSearchHits, maxRecallTokens });
-  // The seq-0 pad satisfies the verbatim positional scan but must never
-  // surface: seq 0 is unrecallable (`parseSeqSpec` rejects it), so drop any
-  // phantom hit and rebuild the summary around the live hits.
+  const out = searchSession(alignedSession, patternSource, { maxSearchHits, maxRecallTokens });
+  // Defense in depth: the index-0 hole can never surface as a hit (the
+  // engine skips it before matching), but seq 0 is unrecallable
+  // (`parseSeqSpec` rejects it), so drop any phantom hit and rebuild the
+  // summary around the live hits.
   const hits = out.hits.filter((hit) => hit.seq !== 0);
   const dropped = out.hits.length - hits.length;
   const totalMatches = out.totalMatches - dropped;
