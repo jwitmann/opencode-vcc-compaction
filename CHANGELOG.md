@@ -7,6 +7,16 @@ Single source: the tag-triggered workflow publishes each version's
 section as the GitHub release notes, so this file and the release
 page never diverge.
 
+## [v0.3.2] - 2026-11-20
+
+### Features
+
+- wrap compaction summary in single collapsible details layer ([`b8f3185`](https://github.com/jwitmann/opencode-vcc-compaction/commit/b8f318509ed5363bf906a49deba004d4b184fef2))
+
+### Documentation
+
+- live verdict for collapsible checkpoint wrapper ([`8b03ac3`](https://github.com/jwitmann/opencode-vcc-compaction/commit/8b03ac37cf14b7fbf74330e30bfe2915da61984e))
+
 ## [v0.3.1] - 2026-11-20
 
 ### Features

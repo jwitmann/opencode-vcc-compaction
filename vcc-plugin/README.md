@@ -15,7 +15,7 @@ Port of [`dsh-compaction-vcc`](https://github.com/tingfeng-droid/dsh-compaction-
 directly against `@opencode/plugin/effect` (canonical runtime), so no
 convert-to-Effect task ever arises. The VCC reference engine is vendored
 byte-identical from `../compiler/` into `./engine/` (sync-enforced).
-Version: `opencode-vcc-compaction@0.3.1`.
+Version: `opencode-vcc-compaction@0.3.2`.
 
 ## How it works
 
