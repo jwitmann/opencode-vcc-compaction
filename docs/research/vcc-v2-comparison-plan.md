@@ -128,3 +128,47 @@ Skip (not ours):
   debounce/backoff (host owns the trigger), config-file watching (host
   owns our options), TUI tree-walking folds (complementary package —
   co-install instead).
+
+## Verdict: checkpoint-degradation audit, live (2026-11-21)
+
+Live leg of the audit (offline vector: "prior checkpoints survive
+verbatim across compactions", committed with the plan update). Two
+scratch arms, host `opencode v2.3.2`, contributor model
+`opencode-go/muse-spark-1.3-contributor`, harness
+`compaction.buffer 99%`, ours `maxTokens 2000 keepMessages 4`.
+Needles: early `vault9-early-11` / `frost9-early-22` (phase 1),
+mid `loft9-mid-33` / `heat9-mid-44` (phase-2 turn 1).
+
+- Control (arm A, VCC-over-VCC, same session throughout): 3 VCC
+  checkpoints. Counters exact against body structure every time
+  (`15 msgs -> 19 entries` full verbatim; `3 -> 2` and `5 -> 4` as
+  elided-group + verbatim sections). Early needles verbatim in ckpt1.
+  Mid needles not verbatim in ckpt bodies (2000-token cap elided those
+  spans to seq pointers) but alive in live rows + snapshot recall path.
+  All 4 needles reachable post-3-compactions. No generic-sentence
+  degradation anywhere.
+- Test (arm B, plugin removed after 2 VCC checkpoints, 1 native
+  compaction over them): native summary (866 chars, task-shaped
+  Objective/Work-State) carries **0 of 4 needles, 0 of 30 verbatim
+  lines shared with either VCC body, no `<details>` wrapper, no
+  checkpoint header, no RECALL block, no mention of the needle files**.
+  VCC rows stay in the session log but drop out of live context.
+  Score: **missing across the board** (single sample; model-written
+  summaries are model-dependent, but direction matches the DSH dodge
+  rationale exactly).
+- Host behavior noted: the compaction event carries an incremental span
+  (3–15 messages per event here, not full history), so prior VCC rows
+  normally survive as own rows in the keep window — the offline nesting
+  path was not exercised live, no contradiction.
+
+Implication: alternating VCC and native mid-session (e.g. uninstall
+between compactions) drops checkpoint content from live context. No
+code change (host owns the native summary); the DSH "dodge host
+summary nodes" stance is confirmed from the other side.
+
+Evidence: `/tmp` harness `pilot9-*` (arm A session
+`ses_e01335a99ffeAtl0hV8qXcFK7Q`, 3 VCC rows; arm B session
+`ses_e0131567effeTbEOv2Gtp`, 2 VCC + 1 native rows; step dumps copied
+to `pilot9-b-step1/2-dump-*.json` before the driver reused filenames —
+phase-1 per-turn dumps were overwritten by the step reruns, turn lines
+survive in the logs).
