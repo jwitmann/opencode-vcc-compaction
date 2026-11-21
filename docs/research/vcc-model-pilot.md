@@ -49,7 +49,35 @@ before continuing (so history accumulates first, then fires).
   '/api/session/<SID>/message?type=compaction&order=desc&limit=1'` —
   record summary chars + usage fields present/absent + metadata keys.
 
-## Scorecard (fill after runs)
+## Result: VOID (plugins never loaded — control baseline only)
+
+Both sides ran all 5 content turns and auto-compacted at the same point
+(poll 1 both sides — trigger parity confirmed). But both rows are
+**host-native**: model-style `Objective/Requirements/...` template,
+billed tokens (`input ~700-800, output ~340-370`), no VCC header on our
+side (`summary_chars` 1339, no `[opencode-vcc-compaction ...]` marker),
+no `metadata.compactionModel` on theirs. `metadata.keepID` is present
+both sides — it is a host-native field, not proof of either plugin.
+
+- VCC side: `ses_e01f34fb6ffe04vg1H1ViQ0ej6`,
+  compaction `msg_1fe0da786001FyOpo4HFuZX54Z`, 1339 chars.
+- Model side: `ses_e01f2c66dffei5va3nvOiDtBbw`, 1330 chars, same template.
+
+Diagnosis (same session): `/vcc-status` force-probe twice returned
+`COMMAND MISSING` — including in a fresh session after touching
+`examples/opencode.jsonc` (reload did not help). Standalone
+`--print-logs` shows why: `failed to load plugin target=..` —
+`FileSystem.makeDirectory (~/.local/state/...)` PermissionDenied under
+this sandbox. With `XDG_*HOME=/tmp/...` the plugin loads standalone
+(`loading plugin id=..`), but standalone has no model auth
+(`ModelUnavailableError`), and the background service's log
+(`~/.local/share/opencode/log`) is unreadable from this sandbox, so the
+service-side load failure cannot be debugged here.
+
+Value banked: harness parity (identical trigger timing), scripts +
+needles + scorecard ready, control-baseline rows for "no plugin".
+The real fight needs an unsandboxed terminal (plugin install + model
+auth both require real HOME paths).
 
 | | VCC side | model side |
 |---|---|---|
