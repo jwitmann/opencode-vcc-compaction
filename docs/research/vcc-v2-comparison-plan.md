@@ -77,9 +77,12 @@ Park (needs owner decision / new surface — do not expand scope here):
 - Per-session on/off switch (esuyo `/compaction on|off`, DCP `/dcp manual
   [on|off]` — persisted per-session, feedback via ignored message): would
   need a new command or storage flag. Parked.
-- Provider-specific abstain (their `claude-code` carve-out): check
-  whether any V2 provider route bypasses `event.result` the way their
-  bridge does. Parked as investigation.
+- Provider-specific abstain (their `claude-code` carve-out — note:
+  `claude-code` is a provider *inside* OpenCode, typically the
+  subscription/plan route via the `@openchamber/opencode-claude` bridge,
+  with its own session/compaction bookkeeping): check whether any V2
+  provider route bypasses `event.result` the way their bridge does.
+  Parked as investigation.
 - Cap scaling with model window (their fixed-reference vs reported
   limit debate): our cap is model-agnostic by design; revisit only with
   evidence. Parked.
