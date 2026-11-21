@@ -7,6 +7,40 @@ Single source: the tag-triggered workflow publishes each version's
 section as the GitHub release notes, so this file and the release
 page never diverge.
 
+## [v0.3.4] - 2026-11-21
+
+### Features
+
+- append-mode snapshots with retention bound (K=50, payload aging, config) ([`b3279eb`](https://github.com/jwitmann/opencode-vcc-compaction/commit/b3279eb98cb0838dc61418ca51511c8d4b73ed25))
+
+### Fixes
+
+- warn on compaction-hook abstain; docs: resolve round-5 host-template interleave cause ([`f6fb2d3`](https://github.com/jwitmann/opencode-vcc-compaction/commit/f6fb2d321838071a1a8f698f8fad72a454d0e276))
+
+### Documentation
+
+- sync version references to 0.3.3 post-release ([`8e2e97e`](https://github.com/jwitmann/opencode-vcc-compaction/commit/8e2e97e5558362a07d17c8df156fc5f860dca8d9))
+- sync stale v0.3.2 status ref to v0.3.3 in README ([`5b78508`](https://github.com/jwitmann/opencode-vcc-compaction/commit/5b78508b2607bb15e646d39cdc905030604e46e6))
+- drop hardcoded versions from README, changelog owns them ([`3dc74c5`](https://github.com/jwitmann/opencode-vcc-compaction/commit/3dc74c5dec8ac4cbcedbd7c85064b4806d5989f0))
+- full README audit, fix 8 inconsistencies vs code and host docs ([`1542d20`](https://github.com/jwitmann/opencode-vcc-compaction/commit/1542d202360c35eb66ec076e4402442fe4277f2b))
+- resolve parked notes - bench script, research index, version-free AGENTS ([`7d66271`](https://github.com/jwitmann/opencode-vcc-compaction/commit/7d66271f30f3526796ba2b3731f61e38e62be969))
+- V2 comparison plan (compaction-model main event, borrow list) ([`d782be9`](https://github.com/jwitmann/opencode-vcc-compaction/commit/d782be9f469b92f389256e51a68ef153ed5df7e9))
+- cite DCP manual-mode precedent for on/off switch ([`b478f2c`](https://github.com/jwitmann/opencode-vcc-compaction/commit/b478f2cc8c7a80441909ea0a033b998fa106ba6f))
+- note claude-code is an in-OpenCode plan route ([`c981cea`](https://github.com/jwitmann/opencode-vcc-compaction/commit/c981cea4e6b28a3951caae7f7d2d58c32dd33dcc))
+- drop cap-scaling and dry-run parked items ([`dc14602`](https://github.com/jwitmann/opencode-vcc-compaction/commit/dc14602161d14b70a771b24ad2ccb563b44c9bc1))
+- add standing board to V2 comparison plan ([`6d131f3`](https://github.com/jwitmann/opencode-vcc-compaction/commit/6d131f3540afdc5103a30adc6fa4467867255c54))
+- single-contender comparison plan ([`d9162da`](https://github.com/jwitmann/opencode-vcc-compaction/commit/d9162dad16481d9e968c4186dada93ed1a6c31d9))
+- pilot prep for VCC vs compaction-model fight ([`133cb41`](https://github.com/jwitmann/opencode-vcc-compaction/commit/133cb41ffaf33bf8d6b0f1ca2405abe02d1a9732))
+- pilot void verdict, plugin load blocked in sandbox ([`779f64a`](https://github.com/jwitmann/opencode-vcc-compaction/commit/779f64a346eefe472bfac8fc16efb4f884bb8995))
+- pilot round 2 baselines (absolute harness, default summarizer) ([`301cee0`](https://github.com/jwitmann/opencode-vcc-compaction/commit/301cee0f00fb8bd6dc7f5f5cf68ade08670301ca))
+- pilot round 2 running, warm-load proof ([`93ca73c`](https://github.com/jwitmann/opencode-vcc-compaction/commit/93ca73c1e9b0b790b042df62e1f65216af327876))
+- round-2 pilot verdict, both plugins genuine ([`284ce00`](https://github.com/jwitmann/opencode-vcc-compaction/commit/284ce003b0d4aa7b8892d10c7a24a165b9941f28))
+- round-3 rematch verdict, fire-point asymmetry is noise ([`a75dfe5`](https://github.com/jwitmann/opencode-vcc-compaction/commit/a75dfe57997e99fa93da6e1022f639ddb68b245c))
+- round-4 prefix-recall gap, snapshot covers live tail only ([`1053ee0`](https://github.com/jwitmann/opencode-vcc-compaction/commit/1053ee0dbf91810cc4702192503ced80386bfd93))
+- dated correction (retention bound) + live merge verification ([`06086be`](https://github.com/jwitmann/opencode-vcc-compaction/commit/06086be396088e1c2d62e4bec31caee93bc636d0))
+- round-5 multi-cycle needle-survival verdict (VCC 11 rows vs model 4 rows, both 4/4 continuation) ([`99396aa`](https://github.com/jwitmann/opencode-vcc-compaction/commit/99396aa2b4ae3e4324bf8942bf73abc7e8e2ae29))
+- note upstream boundary (keepID/abstain/store are ours, engine is verbatim) ([`7a4f1ca`](https://github.com/jwitmann/opencode-vcc-compaction/commit/7a4f1caa9e87110f189872d1202e88645f8b7003))
+
 ## [v0.3.3] - 2026-11-21
 
 ### Fixes
