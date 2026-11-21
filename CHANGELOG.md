@@ -7,6 +7,20 @@ Single source: the tag-triggered workflow publishes each version's
 section as the GitHub release notes, so this file and the release
 page never diverge.
 
+## [v0.3.3] - 2026-11-21
+
+### Fixes
+
+- sessionEventAt legacy miss returns undefined, not a wrong event ([`bde85b8`](https://github.com/jwitmann/opencode-vcc-compaction/commit/bde85b8fa686cfff5ee43e68b8c9269a91095f9e))
+
+### Documentation
+
+- fix release.sh validation comment (engine-sync gate is gone) ([`94342ba`](https://github.com/jwitmann/opencode-vcc-compaction/commit/94342baa4c7c7c68597cb392bd829acaac4cf0e4))
+
+### Other
+
+- root-as-package layout, single README, one engine/ ([`1bd8634`](https://github.com/jwitmann/opencode-vcc-compaction/commit/1bd8634b4de1dd16393575e10ec22ac841dcc633))
+
 ## [v0.3.2] - 2026-11-20
 
 ### Features
