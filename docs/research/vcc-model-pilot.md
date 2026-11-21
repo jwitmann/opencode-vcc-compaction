@@ -1,18 +1,19 @@
 # Pilot: VCC vs compaction-model (single fight)
 
-**Status:** prep (harnesses + script committed; runs need the live turns below).
+**Status:** round 2 (baseline fixes applied; rerunning).
 **Base:** host `opencode v2.3.2`, `@opencode/plugin 2.3.2`, `effect 4.1.0`.
-Ours `opencode-vcc-compaction@0.3.3` (`examples/`: maxTokens 2000,
-keepMessages 4, buffer 99%). Theirs
+Ours `opencode-vcc-compaction@0.3.3` (`/tmp/pilot-vcc/`: absolute
+package path, maxTokens 2000, keepMessages 4, buffer 99%). Theirs
 `@madsoftwaredev/opencode-compaction-model@0.1.3` (`examples-model/`:
-summarizer = working model, buffer 99% — recorded deviation from their
-default `opencode-go/deepseek-v4.1-flash#max`; rationale: availability +
-reproducibility on this host).
+their default summarizer `opencode-go/deepseek-v4.1-flash#max`, buffer
+99% — override dropped after round 1 proved contributor incompatible
+with their Go adapter).
 Working model both sides: `opencode-go/muse-spark-1.3-contributor`.
 
 ## Harnesses
 
-- `examples/` — VCC side (existing scratch project, Brain-free).
+- `/tmp/pilot-vcc/` — VCC side (this pilot only, Brain-free, absolute
+  package path; committed `examples/` keeps portable `..` for TUI use).
 - `examples-model/` — contender side (this pilot only, Brain-free).
 
 Both run headless from their own cwd:
@@ -49,7 +50,38 @@ before continuing (so history accumulates first, then fires).
   '/api/session/<SID>/message?type=compaction&order=desc&limit=1'` —
   record summary chars + usage fields present/absent + metadata keys.
 
-## Result: VOID (plugins never loaded — control baseline only)
+## Step 0: baseline (load checks — before any turns)
+
+Lesson learned: verify activation before measuring. For each side,
+in a throwaway session from its harness dir:
+
+- VCC: `/vcc-status` must answer (proves hook + commands registered).
+  Proof in service log: `loading plugin` with no `failed to load`.
+- Model: service log `loading plugin
+  id=@madsoftwaredev/opencode-compaction-model@...` with no failure,
+  AND `compaction-model.log` must show adapter success (no
+  `requires an OpenAI-compatible chat model` fallback lines) after
+  the first compaction — fallback means we measured host-native, not
+  their summarizer.
+
+Baseline failures found 2026-11-21 (both sides void, see verdict below):
+
+- VCC: `failed to load plugin target=..`: service resolved the
+  relative path against the wrong base (`/home/package.json`
+  ENOENT). Headless `run` ≠ TUI path (live verdict proved `..`
+  works interactively). Pilot fix: `/tmp/pilot-vcc/opencode.jsonc`
+  with absolute `package: /home/jerome/opencode-vcc-port`; committed
+  `examples/opencode.jsonc` keeps portable `..` (TUI-proven).
+- Model: plugin loaded, but every compaction logged `The Go
+  compaction adapter requires an OpenAI-compatible chat model.
+  Falling back to the session model.` — our `options.model`
+  override (`opencode-go/muse-spark-1.3-contributor`) is not
+  OpenAI-compatible, so we measured host fallback, not their
+  summarizer. Pilot fix: drop the override, use their default
+  (`opencode-go/deepseek-v4.1-flash#max`, OpenAI-compatible via
+  their Go adapter).
+
+## Result, round 1: VOID both sides (control baseline only)
 
 Both sides ran all 5 content turns and auto-compacted at the same point
 (poll 1 both sides — trigger parity confirmed). But both rows are
@@ -63,21 +95,13 @@ both sides — it is a host-native field, not proof of either plugin.
   compaction `msg_1fe0da786001FyOpo4HFuZX54Z`, 1339 chars.
 - Model side: `ses_e01f2c66dffei5va3nvOiDtBbw`, 1330 chars, same template.
 
-Diagnosis (same session): `/vcc-status` force-probe twice returned
-`COMMAND MISSING` — including in a fresh session after touching
-`examples/opencode.jsonc` (reload did not help). Standalone
-`--print-logs` shows why: `failed to load plugin target=..` —
-`FileSystem.makeDirectory (~/.local/state/...)` PermissionDenied under
-this sandbox. With `XDG_*HOME=/tmp/...` the plugin loads standalone
-(`loading plugin id=..`), but standalone has no model auth
-(`ModelUnavailableError`), and the background service's log
-(`~/.local/share/opencode/log`) is unreadable from this sandbox, so the
-service-side load failure cannot be debugged here.
-
+Diagnosis (round 1, superseded): `/vcc-status` force-probe twice
+returned `COMMAND MISSING`. Service-log proof (readable via node):
+`failed to load plugin target=.. — Could not read package.json:
+ENOENT '/home/package.json'`. Standalone `--print-logs` red herring
+(`~/.local/state` mkdir) is sandbox-only; the service is unsandboxed.
 Value banked: harness parity (identical trigger timing), scripts +
 needles + scorecard ready, control-baseline rows for "no plugin".
-The real fight needs an unsandboxed terminal (plugin install + model
-auth both require real HOME paths).
 
 | | VCC side | model side |
 |---|---|---|
