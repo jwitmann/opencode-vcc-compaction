@@ -145,6 +145,41 @@ artifacts, `git status` clean. `/vcc-status` still reports
 COMMAND MISSING in `run` sessions — hook proven, command
 registration headless unverified (unchanged).
 
+## Result, round 4: prefix recall from snapshot — GAP (2026-11-21)
+
+Question: the rows cover only the compacted prefix as prose, the
+live tail stays in context — but is compacted-away content
+recoverable through the recall path (`/vcc-recall`, `/vcc-search`)?
+
+Method: fresh VCC harness `/tmp/pilot4-recall/`, 8 distinct needles
+(`alpha-gamma-11` … `mu-nu-88`, `vault-recall-66`,
+`scratch-delta-77`), drove to auto-compaction
+(`ses_e01d14061ffek1Aa8pKeiiuJ6q`, row
+`msg_1fe311a68001DtzuTpGzFbvZud`), then checked the snapshot store
+directly (headless `run` cannot execute slash commands — the
+`/vcc-recall zeta-eta-33` attempt was answered by the agent with a
+workspace `grep`, not the command; same wall as `/vcc-status`).
+
+Finding: the stored envelope (`vcc-snapshot/<sid>` in the host kv)
+holds 7 messages — the checkpoint + live tail only. `remember`
+rebuilds the snapshot from current `event.messages` every turn and
+replaces the envelope, so post-compaction the store covers the tail,
+not the prefix. `searchSnapshot` over the stored envelope: 0/8
+needles. The prefix survives only as prose inside the summary text
+(verbatim slice — readable, and continuations keep passing), but
+structured recall (`seq` / `result` / search) cannot reach
+compacted-away turns.
+
+Status: genuine product gap, precisely bounded. Availability is
+intact (summary prose + live tail); *recallability* of the prefix
+is not. The checkpoint's `RECALL: append-only log — nothing is
+lost` line overpromises for the recall path. Fix directions (not
+started, owner call): append-mode snapshots across compactions, or
+reword the checkpoint claim to the guarantee actually held
+(prefix preserved verbatim in the row). Slash-command headlessness
+(`run` sessions can't invoke `/vcc-recall` at all) is the second
+half of the same story.
+
 ## Result, round 3: rematch — asymmetry flipped, cause is noise (2026-11-21)
 
 Identical fresh seeds (`/tmp/pilot3-vcc/`, `/tmp/pilot3-model/`),
