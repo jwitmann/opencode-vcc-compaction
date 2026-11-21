@@ -205,15 +205,24 @@ introduced anywhere. Cycle 3 still tested repeated-rewrite
 stability (VCC's extra checkpoints, contender growth to 7KB). A
 strict late-needle test would add a plant turn to cycle 3.
 
-Open follow-up (ours to address): during the VCC probe turn, 4 of
-11 rows are host-template (`## Objective/...`, the round-1 VOID
-shape) interleaved with our checkpoints — the host went around
-our hook under sustained-99% pressure (all 4 still preserve YYYY,
-no loss observed). Candidates: our hook abstained (Effect
-failover) vs a host mid-step path that skips hooks. Unresolved —
-needs the service log (not at the expected state-dir path this
-session). No product change: needles survive either path and the
-continuation passes.
+Resolved (same day, no longer open): the 4 host-template rows are
+our own designed abstain path, not a host bypass. Evidence chain:
+(1) `index.ts` header documents it — "when the adapter abstains
+(no message id at/after the keep cut), result stays unset and the
+host falls back to model compaction"; (2) `adapter.mjs`
+`pickKeepID` returns undefined exactly then (selftest vector
+covers it); (3) the hook's abstain return was the one silent
+path in the file — every other failure warns; (4) the service
+log (`~/.local/share/opencode/log/opencode.log`, node-readable;
+bun-CLI reads are sandbox-denied) shows no hook errors in the
+probe window, consistent with a silent designed abstain, and
+confirms the message API caps `limit` at 200; (5) the abstains
+land on degenerate cascade windows (observed "3 messages -> 3
+entries" rows) where the keep-cut tail carries no usable id.
+Fix: the abstain now warns (`adapter abstained ... leaving
+result unset for host fallback`), so future occurrences are
+observable. No behavior change: needles survive either path and
+the continuation passes.
 
 Bottom line: multi-cycle survival holds both sides. VCC is a
 bounded deterministic slice (small stable rows, zero inference

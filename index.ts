@@ -335,7 +335,12 @@ export default Plugin.define({
               console.warn("[opencode-vcc-compaction] adapter failed; leaving result unset:", error)
               return
             }
-            if (outcome === undefined) return
+            if (outcome === undefined) {
+              console.warn(
+                "[opencode-vcc-compaction] adapter abstained (no message id at/after the keep cut); leaving result unset for host fallback",
+              )
+              return
+            }
             event.result = {
               summary: outcome.summary,
               metadata: { keepID: outcome.keepID },
