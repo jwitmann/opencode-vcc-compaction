@@ -138,3 +138,24 @@ their options to match our fire cadence, or run production host
 defaults so the window grows past 20k. No benchmark needed
 beyond this for our claims: survival is 6/6 both sides, cost is
 zero-model-call both sides (their shaver is LLM-free too).
+
+## Engagement probe (same day, follow-up)
+
+Question: does their cutter engage when its trigger IS met?
+Single arm, 9-turn script head (fresh needles `*-81`–`84`),
+their options tuned down (`minimumContextTokens: 5000`,
+`protectedToolRounds: 1`), everything else stock
+(`/tmp/pilot8-live/`, same model). Baseline: status tool answers,
+clean load, no warnings.
+
+Result: **still zero engagement.** 9 turns, 51 msgs, 1
+compaction — host-native row (1012 chars, early YY), 0 `lc1_`
+refs, 0 markers, 0 archive backups. Continuation: 4/4 exact
+(host row + live context). Even with the trigger lowered 4× and
+protection cut to 1 round, neither the idle shaver nor the
+replacement hook acted. Strong evidence the idle path is inert
+in headless `run` sessions (their integration tests launch stock
+OpenCode interactively) and the replacement path lets native
+through unless a shave is pending. Their cutter is unobservable
+and untriggerable in the headless regime — which is also the
+regime every CI/benchmark harness runs in.
