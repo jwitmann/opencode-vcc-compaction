@@ -8,7 +8,7 @@ This plugin removes the model from that step. Port of [`dsh-compaction-vcc`](htt
 directly against `@opencode/plugin/effect` (canonical runtime), so no
 convert-to-Effect task ever arises.
 
-On every `compaction` hook the plugin compiles history with a deterministic region compiler and sets `event.result = { summary, metadata: { keepID } }`. The host takes its `fromHook` short-circuit: the summary persists verbatim, the tail rebuilds from `keepID`, and **no model call is made** on the compaction path — proven live on host v2.3.2 (see [`docs/research/vcc-plugin-live-verdict.md`](https://github.com/jwitmann/opencode-vcc-compaction/blob/main/docs/research/vcc-plugin-live-verdict.md)).
+On each `compaction` hook the plugin compiles history with a deterministic region compiler and, when a keepID can be picked, sets `event.result = { summary, metadata: { keepID } }`. The host takes its `fromHook` short-circuit: the summary persists verbatim, the tail rebuilds from `keepID`, and **no model call is made** on the compaction path — proven live on host v2.3.2 (see [`docs/research/vcc-plugin-live-verdict.md`](https://github.com/jwitmann/opencode-vcc-compaction/blob/main/docs/research/vcc-plugin-live-verdict.md)).
 
 Why verbatim: a model asked to summarize fills what it cannot quite recall with plausible wording — invented, fluent, and then treated as factual premise. This engine only moves original text, never rewriting a character: every elision carries a `(seq N)` pointer back to its source event. The model sees original tokens or explicitly marked pointers. Nothing else.
 
@@ -159,9 +159,11 @@ Or declare it in `opencode.json`:
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugin": ["opencode-vcc-compaction"]
+  "plugins": ["opencode-vcc-compaction"]
 }
 ```
+
+String and object forms can mix in one `plugins` array.
 
 With options (all optional; defaults in Configuration below):
 
@@ -230,11 +232,12 @@ How the budgets behave:
   matters more than the middle.
 - Under cap pressure the oldest **tool/result rows go first**
   (`[N tool/result entries elided: seqs a-b]`), then the oldest remaining
-  entries — tool calls can never squeeze the dialogue out. The newest
-  content always survives, and a `[cap enforced at N entry tokens]`
-  footer says the cap bit.
+  entries (`[N earlier entries elided: ...]`) — tool calls can never squeeze
+  the dialogue out. The newest content always survives, and a
+  `[cap enforced at N entry tokens]` footer says the cap bit.
 - Dropped prior checkpoints never vanish silently: each leaves a
-  `[checkpoint N]` line (N = compaction ordinal, 1 = oldest).
+  `[checkpoint @ seq N]` line (the seq-fallback form — this path supplies
+  no checkpoint ordinals).
 - `keepMessages` counts request messages, not entries: the host rebuilds
   the verbatim tail from `keepID`, the summary covers everything older.
 
@@ -254,8 +257,10 @@ Server slash commands (plus the `./tui` companion below):
 `context` hook (with `compaction` as backup) persists a cleaned snapshot
 of the session's messages to `ctx.storage` (`vcc-snapshot/<sessionID>`,
 growth-guarded by version/count/lastID); the commands read that
-snapshot. A snapshot written on every context event is fresh enough for
-recall/search; `/vcc-status` reports its age.
+snapshot. Single writes over ~1MB log a warn tripwire (per-session
+max/trip stats live under `vcc-stats/`). A snapshot written on every
+context event is fresh enough for recall/search; `/vcc-status` reports
+its age.
 
 - `/vcc-recall <seq selection> | result <ref> | checkpoint <ref>` —
   restore exact original content, e.g. `/vcc-recall 3-7`,
@@ -287,9 +292,9 @@ giving up to the log.
 `tui.tsx` listens for the reply event and renders it immediately: short
 replies as toasts, long ones as large centered dialogs. No keymap
 commands — none are needed, since the event carries its session. Add
-the package to `cli.json` `plugins` (TUI-only surface, also works
-against a remote server). The server commands stay as the transcript
-record; the companion is the quiet visible channel.
+the package to `cli.json` `plugins` (same package, `./tui` entrypoint;
+TUI-only surface, also works against a remote server). The reply itself never lands in the transcript;
+the companion is the quiet visible channel.
 
 ## Message mapping
 
@@ -301,8 +306,9 @@ compact `JSON.stringify`, text → as-is, error → `[error] ...`, content →
 `TextContent` joined / `[file name]` / `[type]`); media → image iff
 `mediaType` starts with `image/`, else document; `compaction` part with
 text → synthesized checkpoint node (prior summaries carry over verbatim);
-`compaction` with null text, `effort` parts, and system-role messages →
-skipped.
+`compaction` with null text and system-role messages →
+skipped; `effort` parts are dropped but the message shell is kept with
+empty content, so seqs still align.
 
 ## Tokenizer
 
@@ -317,8 +323,9 @@ and control bytes are stripped deterministically before counting.
 
 - `index.ts` — thin Effect wiring only (`Plugin.define` + `Effect.fn` +
   `session.hook` + `command.transform`). No logic beyond config →
-  `compileCompaction` → assign, snapshot remember, and the three
-  `/vcc-*` command registrations.
+  `compileCompaction` → assign, growth-guarded snapshot remember, RPC
+  reply emit with prompt fallback, and the three `/vcc-*` command
+  registrations.
 - `adapter.mjs` — pure mapping + compile (unit-tested, no host). See its
   header for the vocabulary mapping (tool args, tool-result projection,
   checkpoint synthesis, skip cases, tool-link seam).
@@ -326,6 +333,11 @@ and control bytes are stripped deterministically before counting.
   growth-guarded write check, recall/search arg parsing, selection
   resolution, reply formatters, status text). Unit-tested; the only
   module `index.ts` imports command-side.
+- `events.mjs` — reply-event contract (`rpc.opencode-vcc-compaction.replied`
+  type string + payload build/validate); the single source of truth both
+  `index.ts` and `tui.tsx` import.
+- `tui.tsx` — the `./tui` companion (toasts short replies, dialogs long
+  ones; passive listener, no keymap).
 - `engine/` — the VCC reference engine, ported verbatim from upstream
   (`tokenize`, `compile`, `recall`, `session-compat`, `search`). Ships
   inside the npm tarball as published.
