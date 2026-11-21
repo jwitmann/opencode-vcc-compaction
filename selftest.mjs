@@ -268,6 +268,37 @@ check(
   })(),
   true,
 );
+check(
+  "prior checkpoints survive verbatim across compactions",
+  (() => {
+    // Degradation audit (live-compact spine-checkpoint lesson): neither our
+    // own prior checkpoint nor a foreign native row may be re-summarized or
+    // shrunk when compacted over — both must round-trip verbatim, including
+    // across two generations (no summary-of-summary shrinkage).
+    const ours = "needle cellar-early-11 with frost-early-22\n\n[user] (seq 2)\n* read orchard (seq 2 -> result 3)";
+    const nativeRow = "Objective\nSummarize.\n\nDecisions\n- used read\n\nNeedle loft-mid-33 with heat-mid-44.";
+    const first = compileCompaction([
+      { id: "c0", role: "assistant", content: [{ type: "compaction", text: wrapCheckpointSummary(ours, "label") }] },
+      { id: "u1", role: "user", content: [{ type: "text", text: "go on" }] },
+      { id: "u2", role: "assistant", content: [{ type: "text", text: "done" }] },
+      { id: "u3", role: "user", content: [{ type: "text", text: "next" }] },
+    ], buildConfig({})).summary;
+    const second = compileCompaction([
+      { id: "d0", role: "assistant", content: [{ type: "compaction", text: first }] },
+      { id: "d1", role: "user", content: [{ type: "text", text: "more" }] },
+      { id: "d2", role: "assistant", content: [{ type: "text", text: "ok" }] },
+      { id: "d3", role: "user", content: [{ type: "text", text: "end" }] },
+    ], buildConfig({})).summary;
+    const native = compileCompaction([
+      { id: "n0", role: "assistant", content: [{ type: "compaction", text: nativeRow }] },
+      { id: "n1", role: "user", content: [{ type: "text", text: "go on" }] },
+      { id: "n2", role: "assistant", content: [{ type: "text", text: "done" }] },
+      { id: "n3", role: "user", content: [{ type: "text", text: "next" }] },
+    ], buildConfig({})).summary;
+    return first.includes(ours) && second.includes(ours) && native.includes(nativeRow);
+  })(),
+  true,
+);
 
 const SNAP_MSGS = [
   { id: "m1", role: "system", content: [{ type: "text", text: "rules" }] },

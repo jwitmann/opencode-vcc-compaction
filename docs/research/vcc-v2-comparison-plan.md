@@ -29,6 +29,12 @@ explicit `--model` per `AGENTS.md`.
   - v1 (not stageable same-host): `@tarquinen/opencode-dcp@3.2.1`
     (local clone 3.1.15), `magic-compact@1.2.2` — both peer
     `@opencode-ai/plugin` (v1 SDK).
+- Read, not stageable (different host): `Tranquillitatis-Lab/dsh-live-compact@1.1.12`
+  README (fetched 2026-11-21) — the DSH original behind
+  `opencode-live-compact`: per-turn in-place shaving on native DSH
+  per-turn hooks, backup-before-cut, own `spine-checkpoint` cards.
+  Borrow list below; see `docs/research/vcc-livecompact-pilot.md` for
+  why the OpenCode port never engaged headless.
 
 ## The fight
 
@@ -58,6 +64,12 @@ Fit (small, ours to take without changing philosophy):
   install invalid, log reason without transcripts (their log hygiene).
 - Status-without-context (à la esuyo toast): keep `/vcc-status` read
   paths RPC-quiet — already aligned, hold the line.
+- Checkpoint-degradation audit (à la live-compact `spine-checkpoint`):
+  they dodge host `<compacted-summary>`/`compact-checkpoint` nodes
+  because the host re-summarizes them (summary-of-summary shrinkage).
+  Audit whether successive compactions degrade our checkpoint the same
+  way — check what `session-compat.mjs` already does with our own prior
+  markers, add a selftest vector if uncovered.
 
 Park (needs owner decision / new surface — do not expand scope here):
 
@@ -70,18 +82,48 @@ Park (needs owner decision / new surface — do not expand scope here):
   with its own session/compaction bookkeeping): check whether any V2
   provider route bypasses `event.result` the way their bridge does.
   Parked as investigation.
+- Asymmetric cut policy (live-compact pointer rule): giant successful
+  tool results → pointers, failures keep exit code + full diagnostics
+  (skip the cut if diagnostics don't fit the budget). Translation sketch
+  for our pipeline (current: every `role: "tool"` result gets the same
+  `excerptToolResult(body, toolResultExcerptTokens)` head/tail cut,
+  `engine/compile.mjs:685`): (1) classify at the adapter on the
+  structured `type: "error"` signal and thread a per-block failure flag
+  to the compiler — never re-derive from the "[error] " text prefix;
+  (2) split the budget (`toolResultExcerptTokens` for successes, new
+  larger `toolErrorExcerptTokens` for failures, optional pointer-only
+  threshold for huge successes), defaults byte-identical to today;
+  (3) the doesn't-fit path fails OPEN for errors (keep whole + stats
+  flag + warn, never abstain the whole compaction to save one stack
+  trace). Rationale: successes are replaceable (snapshot holds the
+  original one `recall` away), failures are not. Would change compiler
+  behavior. Parked.
+- Prefix-cache-aware cut floor (live-compact newest-card floor): never
+  cut left of the newest card, never rewrite cached prefix. Optimizes
+  cache survival, not just tokens; needs host cache-behavior grounding.
+  Nuance: their floor fits per-turn shaving (stable cached front);
+  checkpoint-at-fire puts a fresh summary at the front and busts prefix
+  cache by construction, so a direct port would be cargo-culting. The
+  version that fits us: our compiler is deterministic, so identical
+  windows yield byte-identical summaries — retries/branches/recompiles
+  of unchanged history are cache-friendly for free, where model-written
+  summaries never are. Parked.
 
 ## Standing list (the whole board)
 
 - Green-light anytime (pure engineering, no live run): metadata stamping,
-  validate-before-install.
+  validate-before-install, checkpoint-degradation audit.
 - Awaiting owner decision: per-session on/off switch, provider-abstain
-  investigation.
+  investigation, asymmetric cut policy, prefix-cache cut floor.
 - Awaiting live-run approval: VCC vs compaction-model comparison
   (plus cgp/esuyo/fold co-install checks).
 
 Skip (not ours):
 
+- Per-turn in-place shaving (live-compact's core — needs a reliably
+  firing per-turn seam; `experimental.idle` proved inert headless per
+  `docs/research/vcc-livecompact-pilot.md`, and our per-turn needs are
+  already served by the `context` hook).
 - Dedicated summarizer model, per-agent policies, charts/dashboards,
   debounce/backoff (host owns the trigger), config-file watching (host
   owns our options), TUI tree-walking folds (complementary package —
