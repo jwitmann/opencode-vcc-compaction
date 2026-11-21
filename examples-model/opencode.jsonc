@@ -1,0 +1,12 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": [
+    {
+      "package": "@madsoftwaredev/opencode-compaction-model@0.1.3",
+      "options": { "model": "opencode-go/muse-spark-1.3-contributor" }
+    }
+  ],
+  // Same trigger as examples/opencode.jsonc so the fight is fair:
+  // compact at ~1% of window so the hook fires cheaply.
+  "compaction": { "buffer": "99%" }
+}

@@ -16,3 +16,11 @@ dist/
 # dev-framework (local-only: profile + state stay on this machine)
 /.dev-framework.yml
 /.dev-framework/
+
+# scratch pilot run artifacts (live sessions write into the harnesses)
+examples/*.md
+examples/needle-dir-alpha/
+examples/vault-check.txt
+examples-model/*.md
+examples-model/needle-dir-alpha/
+examples-model/vault-check.txt
