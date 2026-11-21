@@ -18,7 +18,7 @@
 #
 # What it does:
 #   1. Runs the full validation suite (typecheck, both selftests,
-#      engine-sync, markdown lint).
+#      markdown lint).
 #   2. Bumps the version in package.json.
 #   3. Prepends a CHANGELOG.md section (full history on the first release,
 #      tag range afterwards).
