@@ -1,0 +1,93 @@
+# Plan: VCC vs V2 compaction contenders (comparison + borrow list)
+
+**Scope:** ground the hypothetical VCC vs DCP/magic-compact question in the
+V2 reality: DCP + magic-compact peer the v1 SDK (`@opencode-ai/plugin`)
+and cannot load on this host. The stageable V2 fight is VCC vs
+`compaction-model`, with `cgp` / `esuyo` as trigger-layer notes and `fold`
+as a complement. No code changes in this doc; live runs need explicit
+approval + explicit `--model` per `AGENTS.md`.
+
+## Base
+
+- Host `opencode v2.3.2`, `@opencode/plugin 2.3.2`, `effect 4.1.0`
+  (re-resolved 2026-11-21 via `XDG_DATA_HOME=/tmp/opencode-xdg opencode
+  --version` + `package-lock.json`).
+- Ours `opencode-vcc-compaction@0.3.3` (Effect-direct `compaction` hook,
+  deterministic region compiler, `event.result = { summary, metadata:
+  { keepID } }`, snapshot + `/vcc-recall|search|status`).
+- Contenders (npm registry, fetched 2026-11-21):
+  - `@madsoftwaredev/opencode-compaction-model@0.1.3` — V2
+    (`@opencode/plugin ^2.0.12`). Dedicated summarizer model/variant on
+    the `compaction` hook; validates headings, retries once, falls back
+    to host compaction; stamps `metadata.compactionModel`; abstains for
+    `claude-code`.
+  - `@cesarus777/opencode-cgp@0.6.0` — V2 (`@opencode/plugin 2.0.29`).
+    Compaction *policy* + monitoring (thresholds tokens/ratio/remaining,
+    observe/enforce, cooldown/hysteresis/dedup, per-agent policies).
+    Does not write summaries.
+  - `@esuyo/esuyo-opencode-compaction@1.0.0` — V2
+    (`@opencode/plugin ^2.2.6`, `engines opencode >=2.2.6 <3`). Fixed
+    256k-reference trigger (15% reserve), per-session on/off, debounced
+    checks, backoff, conservative measurement. Does not write summaries.
+  - `@madsoftwaredev/opencode-compaction-fold@0.1.2` — V2 TUI-only
+    (`@opencode/plugin ^2.1.0`). Folds rendered summaries into clickable
+    rows (`defaultExpanded: false`). Changes no history.
+  - v1 (not stageable same-host): `@tarquinen/opencode-dcp@3.2.1`
+    (local clone 3.1.15), `magic-compact@1.2.2` — both peer
+    `@opencode-ai/plugin` (v1 SDK).
+
+## The stageable fight
+
+Main event: **VCC vs compaction-model** — same hook, opposite
+philosophy (verbatim + pointers + zero inference vs dedicated-model
+summaries). Decider is the needle test + hallucination audit + billed
+usage (our rows carry no usage fields; theirs must bill the summarizer).
+
+Undercard (trigger layer, no summary rivalry): VCC + `cgp` / `esuyo`
+stack — they decide *when* compaction fires, we decide *what* the
+summary contains. Test compatibility (co-install), not rivalry.
+
+Exhibition (display layer): `fold` co-install — their TUI folding vs
+our single-`<details>` checkpoint layer; check they compose.
+
+## Method (when approved)
+
+Same probe pattern as `compaction-probe-verdict.md`: one scratch
+harness per contender under `examples/`-style dirs, frozen scripted
+histories (task-shaped, tool calls + results + planted needles),
+version-tagged runs, frozen evidence, verdict in `docs/research/`.
+Metrics per contender: context tax, needle recovery rate, continuation
+success, billed usage (usage-field presence), determinism double-run
+(VCC only entrant), hook latency. No window-filling runs without
+explicit approval.
+
+## Borrowable ideas (fit / skip)
+
+Fit (small, ours to take without changing philosophy):
+
+- Explicit summary metadata (à la `compactionModel`): stamp engine rev
+  and config hash in `metadata` beside `keepID` — cheap diagnostics.
+- Invalid-summary discipline: validate headings, retry once, never
+  install invalid, log reason without transcripts (their log hygiene).
+- Status-without-context (à la esuyo toast): keep `/vcc-status` read
+  paths RPC-quiet — already aligned, hold the line.
+
+Park (needs owner decision / new surface — do not expand scope here):
+
+- Per-session on/off switch (esuyo `/compaction on|off`): would need a
+  new command or storage flag. Parked.
+- Provider-specific abstain (their `claude-code` carve-out): check
+  whether any V2 provider route bypasses `event.result` the way their
+  bridge does. Parked as investigation.
+- Cap scaling with model window (their fixed-reference vs reported
+  limit debate): our cap is model-agnostic by design; revisit only with
+  evidence. Parked.
+- `observe` dry-run mode (cgp): `/vcc-status` covers reads; a true
+  dry-run needs design. Parked.
+
+Skip (not ours):
+
+- Dedicated summarizer model, per-agent policies, charts/dashboards,
+  debounce/backoff (host owns the trigger), config-file watching (host
+  owns our options), TUI tree-walking folds (complementary package —
+  co-install instead).
