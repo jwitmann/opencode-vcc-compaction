@@ -167,3 +167,13 @@ Session `ses_e7eaa04d` ("Improvements and next steps", operator-memory):
   FIFO-evicted at 20 sessions (`MAX_SEEN_SESSIONS`) — the old
   "~200B/session, no eviction needed" line above is superseded;
   cold-start storage re-read refills evicted sessions.
+
+- **Boundary vs upstream dsh-compaction-vcc@0.7.4 (noted 2026-11-21,
+  no action):** `engine/` (tokenize/compile/recall/search/
+  session-compat) is the verbatim port; everything else is ours.
+  `keepID` / the keep-cut abstain, the snapshot store + retention
+  bound, the Effect hook wiring, `/vcc-*` commands, RPC/TUI exist
+  only because the OpenCode host truncates history — the DSH
+  harness keeps a durable append-only log, so upstream has neither
+  the O(n²) store problem nor the abstain path. Nothing found in
+  this pilot transfers upstream as a report.
