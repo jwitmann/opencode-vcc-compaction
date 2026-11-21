@@ -106,6 +106,17 @@ What this pilot did and did not test:
 - Growth curves (cumulative per-turn integrals, identical method):
   VCC 13.7k→319k with 6 checkpoints; live 14.2k→365k with 6
   native rows. Same shape — nothing shaved, nothing diverged.
+- Harness-bias caveat (noted same day): our 99% host buffer is
+  unusually aggressive — it fires native compactions early and
+  often, which maximally starves a 20k live-window trigger. Under
+  production host defaults (larger windows, rarer native fires)
+  their cutter would get its turn. This pilot proves the mismatch
+  regime exists, not that their shaving fails in it. The design
+  critique that stands regardless: their value depends on winning
+  a race against the host's own compaction without coordinating
+  with it — two uncoordinated writers, and when native fires
+  first they do nothing (their replacement hook let all six
+  through native).
 
 Bottom line: no reason to change our design or defaults. For
 users on default host settings, Live Compact's default trigger
