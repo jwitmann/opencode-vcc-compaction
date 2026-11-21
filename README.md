@@ -1,5 +1,7 @@
 # opencode-vcc-compaction — deterministic LLM-free compaction for OpenCode V2
 
+[![OpenCode V2](https://img.shields.io/badge/OpenCode-V2-111827)](https://opencode.ai/docs/plugins/) [![npm version](https://img.shields.io/npm/v/opencode-vcc-compaction?color=8cdb9f)](https://www.npmjs.com/package/opencode-vcc-compaction) [![Node.js 18+](https://img.shields.io/badge/Node.js-%3E%3D18-417e3f?logo=nodedotjs&logoColor=white)](https://nodejs.org/) [![MIT license](https://img.shields.io/badge/License-MIT-22C55E)](./LICENSE) [![CI](https://github.com/jwitmann/opencode-vcc-compaction/actions/workflows/ci.yml/badge.svg)](https://github.com/jwitmann/opencode-vcc-compaction/actions)
+
 **Your long session gets summarized by a model. The summary is invented
 text — and the model then reasons from it as if it were fact.**
 
