@@ -145,6 +145,76 @@ artifacts, `git status` clean. `/vcc-status` still reports
 COMMAND MISSING in `run` sessions — hook proven, command
 registration headless unverified (unchanged).
 
+## Result, round 3: rematch — asymmetry flipped, cause is noise (2026-11-21)
+
+Identical fresh seeds (`/tmp/pilot3-vcc/`, `/tmp/pilot3-model/`),
+per-turn polling, same configs and models as round 2.
+
+VCC: `ses_e01dd9eafffeA1869fqiDBA9Lk`,
+compaction `msg_1fe2355fc002he7K3xf3TSrbhf`, 4231 chars, header
+present, `<details>` present. Covers turns 1–2 + beta prompt
+(prefix compacted, turns 3–5 live tail). N2/N5 verbatim, N1
+verbatim (beta prompt echo), N4 verbatim (dir entries in tool
+output), N3 out of coverage (mango turn in live tail).
+
+Contender: `ses_e01dcee8cffe7DyvO5QzXDEv0W`, compaction
+`msg_1fe23d2140015EbCcY7N5IdVcL`, 2138 chars,
+`metadata.compactionModel` stamped, log shows `summarized with
+opencode-go/deepseek-v4.1-flash#max` for the session. Covers turns
+1–2 (beta turn 3 is the live tail). N2/N5 verbatim, exact edit
+wording quoted; N1 N/A (beta outside coverage, not a miss); N4
+partial (config + marker mentions, `ls` turn not yet run).
+
+Continuation: both pass — exact token in `vault-check.txt`, 17 +
+Fridays stated.
+
+The finding: round 2 fired VCC-early / model-late; round 3 fired
+model-early (turn 3) / VCC-late (turn 5) with byte-identical seeds.
+The asymmetry flipped, so it is run-to-run sampling noise in agent
+tool paths (per-turn token burn differs), not a systematic bias and
+not our timing bug. The fire-point issue is closed as noise; the
+common-prefix scoring stands as the method. No product change
+needed. Side win: the round-3 seed fix worked — the contender
+stayed in its own cwd this time.
+
+| (common prefix, turns 1–2) | VCC | model |
+|---|---|---|
+| N2 retry 17 / N5 Fridays | verbatim / verbatim | verbatim / verbatim |
+| N1 token | verbatim (prompt echo) | N/A (outside coverage) |
+| Row usage fields | absent | absent |
+| Continuation | pass | pass |
+
+## Open issue: fire-point asymmetry (ours to address)
+
+Under identical `buffer: 99%` and the same working model, VCC fired
+mid-script (row covers turns 1–3) while the contender fired after
+all 5 turns. Our plugin does not inflate context (the context hook
+only snapshots to storage; `maxTokens` is the compile budget, not
+the fire threshold), so the cause is unproven — likely session-path
+divergence: the contender strayed into `examples/` (round-1
+polluted, 12-line file, duplicate-match retry) while VCC worked a
+fresh dir, so per-turn token burn differed. But "likely" is not
+evidence. Addressed by the rematch design below: identical fresh
+seeds both sides, per-turn polling, common-prefix scoring — fair
+whatever the cause. If asymmetry persists with identical seeds,
+next step is host fire-threshold investigation (owner call).
+
+## Rematch design (round 3, owner-approved)
+
+- Fresh harnesses `/tmp/pilot3-vcc/` + `/tmp/pilot3-model/` with
+  byte-identical seeds (`alpha-notes.md` mango paragraphs +
+  `needle-dir-alpha/marker.txt`); `examples-model/` gets its own
+  `alpha-notes.md` seed (round 2 lacked one — the stray cause).
+- During the rematch, `examples/*.md` pilot artifacts move to `/tmp`
+  (restored after) so a straying agent cannot find polluted files.
+- Configs unchanged (VCC `maxTokens 2000, keepMessages 4`; contender
+  default summarizer; both `buffer 99%`) — only seeds change.
+- Poll after EVERY turn; stop each side at its first compaction row.
+  Score needles in the common prefix + identical continuation task.
+  (Round-3 result: asymmetry flipped → noise, issue closed; method stands.)
+- Success: same fire turn both sides, or a scored common prefix
+  either way; plus one step toward the fire-point cause.
+
 ## Result, round 1: VOID both sides (control baseline only)
 
 Both sides ran all 5 content turns and auto-compacted at the same point
