@@ -1,5 +1,5 @@
 /**
- * vcc-plugin adapter + snapshot self-test: mapping + keepID + config +
+ * Adapter + snapshot self-test: mapping + keepID + config +
  * compile, plus the snapshot store (clean/build/session-view + search).
  *
  * New code (no upstream original to capture from), so vectors assert
@@ -8,7 +8,7 @@
  * summary shape, snapshot seq alignment, recall/search over snapshots,
  * and double-run determinism.
  *
- * Run: `node vcc-plugin/selftest.mjs` (exit 0 = pass, nonzero = fail).
+ * Run: `node selftest.mjs` (exit 0 = pass, nonzero = fail).
  * No dependencies, no network, no model, no host.
  */
 import {

@@ -7,7 +7,7 @@
  * must reproduce them exactly. Determinism: every vector runs twice and
  * the outputs must be byte-identical.
  *
- * Run: `node compiler/selftest.mjs` (exit 0 = pass, nonzero = fail).
+ * Run: `node engine/selftest.mjs` (exit 0 = pass, nonzero = fail).
  * No dependencies, no network, no model.
  */
 import {

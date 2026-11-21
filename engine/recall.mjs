@@ -18,7 +18,7 @@
  *   (per `archive/plans/vcc-compiler.md` handoff).
  *
  * Upstream semicolons kept verbatim, per the repo `.mjs` convention
- * (see `compiler/compile.mjs` header).
+ * (see `engine/compile.mjs` header).
  *
  * Everything below is deterministic and offline: same session + reference
  * always yields the same recalled text, with no model call.

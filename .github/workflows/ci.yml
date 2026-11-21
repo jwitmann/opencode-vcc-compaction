@@ -1,8 +1,8 @@
 name: CI
 
 # Ported from opencode-dev-framework's ci.yml, adapted: this repo has no
-# root package.json and no build, so validation runs the gate commands
-# directly and the npm publish runs from ./vcc-plugin. First tag push
+# build, so validation runs the gate scripts directly and the npm publish
+# runs from the repo root (which is the package). First tag push
 # claims the `opencode-vcc-compaction` name (manual publish never worked in the
 # owner's setup); afterwards every tag push publishes that version.
 # Auth is npm Trusted Publishing (GitHub OIDC): the publish job carries
@@ -57,7 +57,6 @@ jobs:
       # token automatically. Requires the Trusted Publisher entry on
       # the npm package (one-time, npmjs.com package settings).
       - run: npm publish --provenance --access public
-        working-directory: vcc-plugin
 
   github-release:
     name: GitHub release notes

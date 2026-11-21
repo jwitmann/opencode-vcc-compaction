@@ -38,8 +38,8 @@
  *
  * The session log is append-only: `snapshotNeedsWrite` is a growth guard
  * (version/count/lastID). In-place edits to middle messages are not
- * detected by design. Imports come from the vendored `./engine/` (ships in
- * the tarball), never `../compiler/`.
+ * detected by design. Imports come from `./engine/` (the shipped
+ * reference engine, included in the tarball).
  */
 
 import { mediaLabel, projectResultValue, stringifyToolInput, toNode } from "./adapter.mjs";

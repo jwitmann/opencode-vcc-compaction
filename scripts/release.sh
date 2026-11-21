@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Release script for opencode-vcc-compaction.
-# Workspace repo: the version lives in vcc-plugin/package.json (bumped
+# The version lives in package.json (bumped
 # with node, not `npm version`); validation is the workspace gate
 # scripts (`npm run typecheck/test/lint:md`), so this script matches
 # `.dev-framework.yml` and CI exactly. Toolchain installs with `npm ci`.
@@ -19,7 +19,7 @@
 # What it does:
 #   1. Runs the full validation suite (typecheck, both selftests,
 #      engine-sync, markdown lint).
-#   2. Bumps the version in vcc-plugin/package.json.
+#   2. Bumps the version in package.json.
 #   3. Prepends a CHANGELOG.md section (full history on the first release,
 #      tag range afterwards).
 #   4. Commits and creates an annotated git tag.
@@ -46,12 +46,12 @@ npm run test
 npm run lint:md
 
 echo ""
-echo "==> Bumping version (vcc-plugin/package.json)..."
+echo "==> Bumping version (package.json)..."
 node -e '
 // Targeted version-line replacement (not a full re-serialize) so the
 // bump never reformats the rest of package.json.
 const fs = require("fs");
-const f = "vcc-plugin/package.json";
+const f = "package.json";
 const current = JSON.parse(fs.readFileSync(f, "utf8")).version.split(".").map(Number);
 const bump = process.argv[1];
 if (bump === "major") { current[0] += 1; current[1] = 0; current[2] = 0; }
@@ -62,7 +62,7 @@ const content = fs.readFileSync(f, "utf8").replace(/("version":\s*")[^"]+(")/, `
 fs.writeFileSync(f, content);
 ' "$BUMP"
 
-NEW_VERSION=$(node -p "require('./vcc-plugin/package.json').version")
+NEW_VERSION=$(node -p "require('./package.json').version")
 TAG="v$NEW_VERSION"
 
 echo ""
@@ -72,7 +72,7 @@ PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
 
 echo ""
 echo "==> Committing and tagging..."
-git add vcc-plugin/package.json CHANGELOG.md
+git add package.json CHANGELOG.md
 git commit -m "Release $TAG"
 git tag -a "$TAG" -m "Release $TAG"
 
@@ -83,5 +83,5 @@ echo "To publish, push the tag (publishing itself is your action):"
 echo "  git push origin main \"$TAG\""
 echo ""
 echo "A tag push triggers the publish workflow (.github/workflows/ci.yml),"
-echo "which publishes from ./vcc-plugin with --provenance and cuts the"
+echo "which publishes from the repo root with --provenance and cuts the"
 echo "GitHub release from this version's CHANGELOG section."

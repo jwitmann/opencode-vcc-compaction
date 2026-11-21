@@ -18,7 +18,7 @@
  *   satisfy this; not papered over here.
  *
  * Upstream semicolons kept verbatim, per the repo `.mjs` convention
- * (see `compiler/compile.mjs` header).
+ * (see `engine/compile.mjs` header).
  *
  * Everything below is deterministic and offline: same session + pattern
  * always yields the same hits, with no model call.

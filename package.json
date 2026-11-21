@@ -1,20 +1,55 @@
 {
-  "name": "opencode-vcc-compaction-root",
-  "private": true,
-  "version": "0.0.0",
-  "description": "Workspace root for opencode-vcc-compaction: gate scripts and lint toolchain. The shippable package lives in vcc-plugin/.",
-  "workspaces": [
-    "vcc-plugin"
+  "name": "opencode-vcc-compaction",
+  "version": "0.3.2",
+  "description": "Deterministic LLM-free compaction summaries for OpenCode V2 (VCC reference engine, Effect-direct hook).",
+  "license": "MIT",
+  "author": "jwitmann <jerome_witmann@witmanco.net>",
+  "homepage": "https://github.com/jwitmann/opencode-vcc-compaction#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jwitmann/opencode-vcc-compaction.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jwitmann/opencode-vcc-compaction/issues"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "compaction",
+    "context-management",
+    "deterministic",
+    "llm-free",
+    "effect"
   ],
+  "type": "module",
+  "main": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./tui": "./tui.tsx",
+    "./package.json": "./package.json"
+  },
+  "files": ["index.ts", "adapter.mjs", "snapshot.mjs", "events.mjs", "tui.tsx", "engine/", "!engine/selftest.mjs", "README.md", "LICENSE"],
+  "engines": {
+    "node": ">=18"
+  },
+  "peerDependencies": {
+    "@opencode/plugin": "^2.0.0",
+    "effect": "^4.0.0"
+  },
+  "overrides": {
+    "@opencode/plugin": {
+      "@opentui/solid": "$@opentui/solid"
+    }
+  },
   "scripts": {
-    "typecheck": "node --check vcc-plugin/index.ts && tsc -p vcc-plugin/tsconfig.tui.json",
-    "test": "node compiler/selftest.mjs && node vcc-plugin/selftest.mjs && node scripts/check-engine-sync.mjs",
+    "typecheck": "node --check index.ts && tsc -p tsconfig.tui.json",
+    "test": "node engine/selftest.mjs && node selftest.mjs",
     "lint:md": "markdownlint-cli2 \"**/*.md\""
   },
   "devDependencies": {
-    "markdownlint-cli2": "^0.18.1"
-  },
-  "engines": {
-    "node": ">=18"
+    "@opentui/solid": "^0.5.17",
+    "markdownlint-cli2": "^0.18.1",
+    "solid-js": "^1.9.12",
+    "typescript": "^5.9.2"
   }
 }

@@ -12,7 +12,7 @@
  * DSH imports, so the OpenCode adapter can supply any session-shaped value.
  *
  * Upstream semicolons kept verbatim, per the repo `.mjs` convention
- * (see `compiler/compile.mjs` header).
+ * (see `engine/compile.mjs` header).
  *
  * Everything below is deterministic and offline.
  */

@@ -10,19 +10,17 @@ not the probe workspace: the closed probe harness is frozen under
 
 ## Project layout
 
-- `vcc-plugin/` — the npm package (`opencode-vcc-compaction@0.3.2`:
+- Root is the npm package (`opencode-vcc-compaction@0.3.2`:
   Effect-direct hook + pure adapter + snapshot store + three `/vcc-*`
-  commands + vendored `engine/`; run `npm run typecheck` and
+  commands + `./tui` companion + `engine/`; run `npm run typecheck` and
   `npm run test` from the root).
-- `compiler/` — deterministic reference engine (stages 1–4, verbatim
-  port, dependency-free; covered by `npm run test`). Source of
-  truth; vendored byte-identical into `vcc-plugin/engine/`
-  (sync-enforced, never hand-edit `engine/`).
-- `examples/` — scratch project registering `../vcc-plugin` with a cheap
+- `engine/` — VCC reference engine (verbatim upstream port, stages 1–4,
+  dependency-free; covered by `npm run test`). Source of truth; ships in
+  the npm tarball as published.
+- `examples/` — scratch project registering `..` with a cheap
   `compaction.buffer` trigger. Brain-free; always run live probes with
   cwd here.
-- `scripts/` — `release.sh` / `changelog.sh` (tag-triggered publish flow),
-  `check-engine-sync.mjs` (vendoring gate).
+- `scripts/` — `release.sh` / `changelog.sh` (tag-triggered publish flow).
 - `docs/research/` — verdicts grounding the release claims.
 - `archive/` — frozen history: the closed probe harness + JSONL evidence,
   the deciding spec (`PROBE.md`), the reuse inventory (`REUSE.md`), the
@@ -67,10 +65,9 @@ not the probe workspace: the closed probe harness is frozen under
 ## Verification
 
 - `commands.typecheck`: `npm run typecheck` (`node --check
-  vcc-plugin/index.ts` plus `tsc -p vcc-plugin/tsconfig.tui.json`).
-- `commands.test`: `npm run test` (`node compiler/selftest.mjs` plus
-  `node vcc-plugin/selftest.mjs`, plus
-  `node scripts/check-engine-sync.mjs`).
+  index.ts` plus `tsc -p tsconfig.tui.json`).
+- `commands.test`: `npm run test` (`node engine/selftest.mjs` plus
+  `node selftest.mjs`).
 - Docs-only changes: `npm run lint:md` (config:
   `.markdownlint-cli2.jsonc`); a PASS before the last edit is stale.
 - Live compaction runs only with explicit approval + explicit `--model`,
@@ -78,3 +75,9 @@ not the probe workspace: the closed probe harness is frozen under
 - Plan compliance: re-read this file before declaring a task done and
   confirm every requirement was met; fix gaps first. Gate enforcement is
   `require_review` plus the runnable gates — see `.dev-framework/hardening.md`.
+- `package.json` carries an `overrides` pin (`@opencode/plugin` →
+  `@opentui/solid: $@opentui/solid`): the host's peerOptional
+  (`>=0.8.4`) conflicts with the TUI typecheck dep (`0.5.17`, the proven
+  combination), and modern npm errors instead of skipping the optional
+  peer. Do not drop the pin; regenerate the lock with default (not
+  legacy) peer resolution so peers stay auto-installed.
