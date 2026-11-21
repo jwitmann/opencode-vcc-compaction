@@ -1,6 +1,7 @@
 # Pilot: VCC vs Live Compact (growth-curve fight)
 
-**Status:** running (2026-11-21). VCC arm in flight; live-compact arm queued.
+**Status:** complete (2026-11-21). Both arms 18/18 + engagement
+probe done; verdict + fairness audit committed.
 **Base:** host `opencode v2.3.2`. Ours `opencode-vcc-compaction@0.3.4`
 (`/tmp/pilot7-vcc/`: absolute package path, maxTokens 2000,
 keepMessages 4, buffer 99%). Theirs
