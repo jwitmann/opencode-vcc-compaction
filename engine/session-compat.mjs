@@ -94,5 +94,5 @@ export function sessionEventAt(session, seq) {
   for (const event of events) {
     if (event?.seq === seq) return event;
   }
-  return positional;
+  return undefined;
 }
