@@ -145,6 +145,83 @@ artifacts, `git status` clean. `/vcc-status` still reports
 COMMAND MISSING in `run` sessions — hook proven, command
 registration headless unverified (unchanged).
 
+## Verdict, round 5: multi-cycle needle survival (2026-11-21)
+
+Question cost/latency cannot answer: over repeated compactions in
+one long session, do early needles survive each cycle's rewrite?
+Three cycles per side, one session per side, identical seeds;
+score early/mid survival per compaction row + final continuation.
+Owner-approved; driver `/tmp/pilot6-master.sh` (sequential arms;
+`pilot6-cycle.sh` reuses the arm SID, 6 turns per cycle, target N
+compactions for cycle N).
+
+- Harnesses `/tmp/pilot6-vcc/` + `/tmp/pilot6-model/` (identical
+  `orchard.md` seed + `needle-dir-alpha/marker.txt`); VCC config
+  `..` maxTokens 2000 keepMessages 4 buffer 99%; contender pinned
+  0.1.3 buffer 99% default deepseek-flash summarizer.
+- Cycle 1 (early): plant `cellar-early-11` + `frost-early-22`,
+  orchard read, `ls`, 3× bulk appends. Cycle 2 (mid): plant
+  `loft-mid-33` + `heat-alarm loft-mid-44`, 5× bulk appends.
+  Cycle 3: 6× bulk appends (no new plant — design gap, see below).
+- Methodology note: the driver's `?type=compaction` poll reads 0
+  even with rows present (same illusion as round 1's COMMAND
+  MISSING — poll path, not product). Ground truth is session state
+  (`/api/session/<SID>/message`, full dump, `limit=200` — note
+  `limit=300` returns empty). Side effect is benign: targets never
+  trip early, so all 18 turns run per arm.
+
+Counts (session state): VCC `ses_e01af91aefferjQVQx0bqGM6zv`
+18 turns, 11 rows; contender `ses_e01ab1960ffe2Gq7g6ZaaPR61m`
+18 turns, 4 rows. Row counts differ (the host fires per pressure,
+not per plan) — no top-up needed; survival is scored per row, and
+the continuation probe is identical.
+
+Per-row planted-needle survival (Y = verbatim in row text):
+
+| row | VCC (11 rows) | model (4 rows) |
+|---|---|---|
+| cycle-1 row(s) | 3496 chars, early YY | 3360 chars, early YY |
+| cycle-2 row(s) | 1039 chars, row-text nn (row 1 persists live, so context keeps early) | 4679 chars, early YY + mid YY |
+| cycle-3 rows | five checkpoints 1–7.4KB, mixed windows | 6041 chars YYYY; 7033 chars YYYY |
+| probe-turn rows | 4 host-template + 2 checkpoints (see interleave) | — (probe added no row) |
+| latest row | 1454 chars, YYYY | 7033 chars, YYYY |
+
+Row-size behavior: VCC checkpoints stay small (1–7.4KB; the last
+two stable at identical 1454 chars — the deterministic compiler
+converges); contender rows grow monotonically (3.3 → 4.7 → 6.0 →
+7.0KB — the synthesizer restates everything each cycle).
+
+Continuation (identical probe both sides, post-pilot single turn):
+both recover 4/4 planted needles with exact values and invent
+zero. The VCC agent additionally catalogs bulk distractors
+(`c1bulk*`, `c2bulk*`, `c3bulk*`) as ignore-list; the contender
+agent explicitly declines the unplanted archive pair ("no singular
+archive token was recorded"). Both PASS.
+
+Design gap (honest): cycle 3 plants no late needles — its six
+turns are bulk-only, so "late" survival is untested and the
+`archive-late-55/66` names in the interim note were never
+introduced anywhere. Cycle 3 still tested repeated-rewrite
+stability (VCC's extra checkpoints, contender growth to 7KB). A
+strict late-needle test would add a plant turn to cycle 3.
+
+Open follow-up (ours to address): during the VCC probe turn, 4 of
+11 rows are host-template (`## Objective/...`, the round-1 VOID
+shape) interleaved with our checkpoints — the host went around
+our hook under sustained-99% pressure (all 4 still preserve YYYY,
+no loss observed). Candidates: our hook abstained (Effect
+failover) vs a host mid-step path that skips hooks. Unresolved —
+needs the service log (not at the expected state-dir path this
+session). No product change: needles survive either path and the
+continuation passes.
+
+Bottom line: multi-cycle survival holds both sides. VCC is a
+bounded deterministic slice (small stable rows, zero inference
+calls); the contender cumulatively synthesizes (every row keeps
+all needles so far, rows grow each cycle, one summarizer call per
+compaction). Defaults stand; no benchmark needed — cost/latency
+are givens and survival is now measured.
+
 ## Result, round 4: prefix recall — probe bug, corrected 8/8 (2026-11-21)
 
 Question: the rows cover only the compacted prefix as prose, the
