@@ -83,11 +83,6 @@ Park (needs owner decision / new surface — do not expand scope here):
   with its own session/compaction bookkeeping): check whether any V2
   provider route bypasses `event.result` the way their bridge does.
   Parked as investigation.
-- Cap scaling with model window (their fixed-reference vs reported
-  limit debate): our cap is model-agnostic by design; revisit only with
-  evidence. Parked.
-- `observe` dry-run mode (cgp): `/vcc-status` covers reads; a true
-  dry-run needs design. Parked.
 
 Skip (not ours):
 
