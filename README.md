@@ -351,7 +351,7 @@ from the scratch project, never a real one.
 
 ## Status and limits
 
-- v0.3.2 ships the hook + three server slash commands
+- v0.3.3 ships the hook + three server slash commands
   (`/vcc-recall`, `/vcc-search`, `/vcc-status`) plus the `./tui`
   companion that renders their replies quietly. `(seq N)`
   pointers are 1-based ordinals over the compiled messages (skipped
