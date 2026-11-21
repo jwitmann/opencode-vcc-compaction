@@ -1,6 +1,7 @@
 # Pilot: VCC vs compaction-model (single fight)
 
-**Status:** round 2 (baseline fixes applied; rerunning).
+**Status:** round 2 running (VCC: fresh absolute-path harness;
+contender: default summarizer).
 **Base:** host `opencode v2.3.2`, `@opencode/plugin 2.3.2`, `effect 4.1.0`.
 Ours `opencode-vcc-compaction@0.3.3` (`/tmp/pilot-vcc/`: absolute
 package path, maxTokens 2000, keepMessages 4, buffer 99%). Theirs
@@ -72,6 +73,12 @@ Baseline failures found 2026-11-21 (both sides void, see verdict below):
   works interactively). Pilot fix: `/tmp/pilot-vcc/opencode.jsonc`
   with absolute `package: /home/jerome/opencode-vcc-port`; committed
   `examples/opencode.jsonc` keeps portable `..` (TUI-proven).
+  Service log confirms `loading plugin
+  id=/home/jerome/opencode-vcc-port` for `/tmp/pilot-vcc` (no
+  failure). Open: `/vcc-status` still reports COMMAND MISSING even
+  warm — command registration in `run` sessions unverified;
+  the hook (what the fight needs) is tested by the round-2 run
+  itself.
 - Model: plugin loaded, but every compaction logged `The Go
   compaction adapter requires an OpenAI-compatible chat model.
   Falling back to the session model.` — our `options.model`
