@@ -84,6 +84,15 @@ Park (needs owner decision / new surface — do not expand scope here):
   provider route bypasses `event.result` the way their bridge does.
   Parked as investigation.
 
+## Standing list (the whole board)
+
+- Green-light anytime (pure engineering, no live run): metadata stamping,
+  validate-before-install.
+- Awaiting owner decision: per-session on/off switch, provider-abstain
+  investigation.
+- Awaiting live-run approval: VCC vs compaction-model comparison
+  (plus cgp/esuyo/fold co-install checks).
+
 Skip (not ours):
 
 - Dedicated summarizer model, per-agent policies, charts/dashboards,
