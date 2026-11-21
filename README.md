@@ -112,7 +112,7 @@ information.
 - **Deterministic** — the same messages + config always compile to the
   byte-identical summary (proven by double-run selftests).
 - **Measured** — 4,998 mixed messages compile to a ~28k-character summary
-  in ~0.5 s on the dev machine, byte-identical across runs (see
+  in ~0.4 s on the dev machine, byte-identical across runs (see
   Performance).
 - **Fail-safe** — no keepID, no result: the host falls back to model
   compaction rather than persisting a broken summary.
@@ -122,14 +122,15 @@ information.
 Single-threaded `node`, no model, no network. Measured on the dev machine
 (Xeon W-2195, node v24.22.3) with synthetic mixed histories (user text +
 assistant text + tool-call + tool-result, default config), best of 3 runs.
-Input sizes are request-payload characters with ÷4 token estimates:
+Input sizes are request-payload characters with ÷4 token estimates
+(reproduce: `node scripts/bench.mjs`):
 
 | History | Input | Summary | Time |
 | --- | --- | --- | --- |
-| 999 messages | ~0.58M chars (~150k tokens) | 28,130 chars | 80 ms |
-| 4,998 messages | ~2.9M chars (~730k tokens) | 28,047 chars | 496 ms |
-| 9,999 messages | ~5.9M chars (~1.5M tokens) | 28,047 chars | 934 ms |
-| 24,999 messages | ~14.7M chars (~3.7M tokens) | 27,876 chars | 4.7 s |
+| 999 messages | ~585k chars (~146k tokens) | 27,901 chars | 71 ms |
+| 4,998 messages | ~2.9M chars (~0.7M tokens) | 28,105 chars | 395 ms |
+| 9,999 messages | ~5.9M chars (~1.5M tokens) | 28,151 chars | 856 ms |
+| 24,999 messages | ~14.6M chars (~3.7M tokens) | 27,983 chars | 3.1 s |
 
 Two things to read off this table:
 
@@ -345,7 +346,8 @@ and control bytes are stripped deterministically before counting.
   engine stage vectors (`npm run test` runs both).
 - `examples/` — scratch project registering the repo root with a cheap
   `compaction.buffer` trigger for live runs (never run from a real project).
-- `scripts/` — release + changelog flow (tag-triggered publish).
+- `scripts/` — release + changelog flow (tag-triggered publish) plus the
+  perf bench (`bench.mjs`, behind the Performance table).
 - `docs/research/` — verdicts grounding the release claims.
 - `archive/` — frozen history, not maintained: the closed probe harness,
   the deciding spec, the reuse inventory, and the port plans. Do not extend.

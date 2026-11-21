@@ -10,7 +10,7 @@ not the probe workspace: the closed probe harness is frozen under
 
 ## Project layout
 
-- Root is the npm package (`opencode-vcc-compaction@0.3.3`:
+- Root is the npm package (`opencode-vcc-compaction`:
   Effect-direct hook + pure adapter + snapshot store + three `/vcc-*`
   commands + `./tui` companion + `engine/`; run `npm run typecheck` and
   `npm run test` from the root).
