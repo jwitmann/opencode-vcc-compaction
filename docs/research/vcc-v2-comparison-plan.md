@@ -74,8 +74,9 @@ Fit (small, ours to take without changing philosophy):
 
 Park (needs owner decision / new surface — do not expand scope here):
 
-- Per-session on/off switch (esuyo `/compaction on|off`): would need a
-  new command or storage flag. Parked.
+- Per-session on/off switch (esuyo `/compaction on|off`, DCP `/dcp manual
+  [on|off]` — persisted per-session, feedback via ignored message): would
+  need a new command or storage flag. Parked.
 - Provider-specific abstain (their `claude-code` carve-out): check
   whether any V2 provider route bypasses `event.result` the way their
   bridge does. Parked as investigation.
