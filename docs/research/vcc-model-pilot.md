@@ -145,7 +145,7 @@ artifacts, `git status` clean. `/vcc-status` still reports
 COMMAND MISSING in `run` sessions — hook proven, command
 registration headless unverified (unchanged).
 
-## Result, round 4: prefix recall from snapshot — GAP (2026-11-21)
+## Result, round 4: prefix recall — probe bug, corrected 8/8 (2026-11-21)
 
 Question: the rows cover only the compacted prefix as prose, the
 live tail stays in context — but is compacted-away content
@@ -160,25 +160,24 @@ directly (headless `run` cannot execute slash commands — the
 `/vcc-recall zeta-eta-33` attempt was answered by the agent with a
 workspace `grep`, not the command; same wall as `/vcc-status`).
 
-Finding: the stored envelope (`vcc-snapshot/<sid>` in the host kv)
-holds 7 messages — the checkpoint + live tail only. `remember`
-rebuilds the snapshot from current `event.messages` every turn and
-replaces the envelope, so post-compaction the store covers the tail,
-not the prefix. `searchSnapshot` over the stored envelope: 0/8
-needles. The prefix survives only as prose inside the summary text
-(verbatim slice — readable, and continuations keep passing), but
-structured recall (`seq` / `result` / search) cannot reach
-compacted-away turns.
+Correction (same day): first scoring passed the whole envelope to
+`searchSnapshot`, which takes the messages array — probe bug, not
+product. Re-run correctly over `stored.messages`: **8/8 needles
+recovered**. The checkpoint message (first in the store) carries the
+full summary prose verbatim and search indexes it. The "0/8 GAP"
+first reported was measurement error; the prefix survives as prose
+and "nothing is lost" holds for content.
 
-Status: genuine product gap, precisely bounded. Availability is
-intact (summary prose + live tail); *recallability* of the prefix
-is not. The checkpoint's `RECALL: append-only log — nothing is
-lost` line overpromises for the recall path. Fix directions (not
-started, owner call): append-mode snapshots across compactions, or
-reword the checkpoint claim to the guarantee actually held
-(prefix preserved verbatim in the row). Slash-command headlessness
-(`run` sessions can't invoke `/vcc-recall` at all) is the second
-half of the same story.
+Residual gap (real, narrower): *event-granular* recall of
+compacted turns. The store holds checkpoint + live tail, so `seq` /
+`result` refs resolve against tail events plus one prose blob — a
+prefix turn is not individually addressable. Fix direction
+(approved, built, pending review): append-mode snapshots with a
+retention bound (K=50 newest-wins as `snapshotMaxMessages` /
+`snapshotFullPayloadMessages` config, defaults 50/20), so prefix
+events persist as events and the O(n²) rewrite stays O(bound).
+Headless slash-command uninvokability stands as the separate,
+host-side half.
 
 ## Result, round 3: rematch — asymmetry flipped, cause is noise (2026-11-21)
 

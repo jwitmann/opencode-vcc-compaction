@@ -217,6 +217,8 @@ numbers fall back to defaults.
 | `hideTools` | [] | tool names dropped entirely |
 | `noisePatterns` | [] | extra strip regex sources (strings) |
 | `keepMessages` | 6 | trailing messages kept verbatim |
+| `snapshotMaxMessages` | 50 | snapshot store keeps newest N messages across compactions |
+| `snapshotFullPayloadMessages` | 20 | newest N keep full tool-result payloads; older age out to markers |
 
 `noisePatterns` entries must be valid regex sources — an invalid one
 throws loudly at setup, never a silent no-strip.

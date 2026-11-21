@@ -55,6 +55,12 @@ export const DEFAULT_PLUGIN_CONFIG = Object.freeze({
   hideTools: [],
   noisePatterns: [],
   keepMessages: 6,
+  // Storage-write bounds (NOT compile knobs): how much history the
+  // snapshot store retains across compactions. Distinct from
+  // keepMessages (compile tail per summary). Tunable via options;
+  // the module constants in snapshot.mjs mirror these defaults.
+  snapshotMaxMessages: 50,
+  snapshotFullPayloadMessages: 20,
 });
 
 /**
@@ -277,6 +283,8 @@ export function buildConfig(options) {
     hideTools,
     noisePatterns: compileNoisePatterns(noiseSources),
     keepMessages: num("keepMessages"),
+    snapshotMaxMessages: num("snapshotMaxMessages"),
+    snapshotFullPayloadMessages: num("snapshotFullPayloadMessages"),
   };
 }
 

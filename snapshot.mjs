@@ -36,10 +36,14 @@
  * holds, then delegates — no forked search loop to hand-sync, no phantom
  * hit, no stolen hit-slot or budget. Same hits, honest seqs.
  *
- * The session log is append-only: `snapshotNeedsWrite` is a growth guard
- * (version/count/lastID). In-place edits to middle messages are not
- * detected by design. Imports come from `./engine/` (the shipped
- * reference engine, included in the tarball).
+ * The session log is append-only across compactions: `remember` merges
+ * each fresh snapshot with the stored prefix (`mergeSnapshotMessages`),
+ * then retains newest-wins (`capSnapshotMessages`,
+ * `ageSnapshotPayloads`) so the per-turn rewrite stays O(bound) —
+ * the 1MB tripwire keeps meaning "exceptional". In-place edits to
+ * middle messages are not detected by design.
+ *
+ * Imports come from `./engine/` (the shipped reference engine).
  */
 
 import { mediaLabel, projectResultValue, stringifyToolInput, toNode } from "./adapter.mjs";
@@ -167,18 +171,162 @@ export function buildSnapshot(messages) {
     const kept = cleanMessage(message);
     if (kept !== null) cleaned.push(kept);
   }
-  let lastID;
-  for (let index = cleaned.length - 1; index >= 0; index -= 1) {
-    if (typeof cleaned[index].id === "string" && cleaned[index].id !== "") {
-      lastID = cleaned[index].id;
-      break;
-    }
-  }
   return {
     version: SNAPSHOT_VERSION,
     messages: cleaned,
     count: cleaned.length,
-    lastID,
+    lastID: lastMessageID(cleaned),
+  };
+}
+
+/**
+ * Newest message id in a cleaned list (shared by build/retain paths so
+ * the meta computation never forks).
+ * @param cleaned - cleaned snapshot messages in order.
+ * @returns last id, or undefined when no message carries one.
+ */
+export function lastMessageID(cleaned) {
+  if (!Array.isArray(cleaned)) return undefined;
+  for (let index = cleaned.length - 1; index >= 0; index -= 1) {
+    const id = cleaned[index] !== null && typeof cleaned[index] === "object" ? cleaned[index].id : undefined;
+    if (typeof id === "string" && id !== "") return id;
+  }
+  return undefined;
+}
+
+/**
+ * Retention bounds. Measured across 31 live snapshots: ~4-9KB/message
+ * (median ~5KB, tool-result JSON + reasoning), ~3-4 messages/turn.
+ * K=50 newest-wins caps the envelope at ~450KB worst case (~250KB
+ * typical) — 2x under the 1MB tripwire — with a ~12-17 turn horizon
+ * (>= 1 full compaction interval at every budget scale observed).
+ * Full payloads survive only on the newest 20 (bulk lives in recent
+ * turns); older tool-result values age out to a marker, keeping the
+ * words (tool names, inputs, summary prose) while dropping the bulk.
+ */
+export const SNAPSHOT_MAX_MESSAGES = 50;
+
+/** Newest messages keeping full tool-result payloads; older ones age out. */
+export const SNAPSHOT_FULL_PAYLOAD_MESSAGES = 20;
+
+/**
+ * Merge a fresh cleaned snapshot with the previously stored one so the
+ * prefix survives compactions (append-mode). Id-union: previous order,
+ * then unseen new — one path, no anchor, so post-compaction checkpoints
+ * landing before old ids, duplicate ids, and reordered contexts all
+ * resolve to the same correct union. Id-less messages always append
+ * when ids exist to dedupe with; with no ids on either side the merge
+ * is pure duplication, so newest-wins. Pure: never mutates inputs.
+ * @param previousMessages - stored cleaned messages (or undefined).
+ * @param nextMessages - freshly cleaned messages in order.
+ * @returns merged cleaned messages in order (uncapped; caller retains).
+ */
+export function mergeSnapshotMessages(previousMessages, nextMessages) {
+  const prev = Array.isArray(previousMessages) ? previousMessages : [];
+  const next = Array.isArray(nextMessages) ? nextMessages : [];
+  if (prev.length === 0) return next.slice();
+  if (next.length === 0) return prev.slice();
+  const seenIDs = new Set();
+  let prevIDs = 0;
+  for (const message of prev) {
+    if (message !== null && typeof message === "object" && typeof message.id === "string" && message.id !== "") {
+      seenIDs.add(message.id);
+      prevIDs += 1;
+    }
+  }
+  if (prevIDs === 0 && !next.some((message) => message !== null && typeof message === "object" && typeof message.id === "string" && message.id !== "")) {
+    return next.slice();
+  }
+  const merged = [...prev];
+  for (const message of next) {
+    const id =
+      message !== null && typeof message === "object" && typeof message.id === "string" && message.id !== ""
+        ? message.id
+        : null;
+    if (id === null || !seenIDs.has(id)) {
+      merged.push(message);
+      if (id !== null) seenIDs.add(id);
+    }
+  }
+  return merged;
+}
+
+/**
+ * Newest-wins message cap (the O(n²) ceiling: per-turn rewrite stays
+ * O(bound), so the 1MB tripwire keeps meaning "exceptional").
+ * Pure: never mutates the input.
+ * @param messages - cleaned messages in order.
+ * @param max - cap (defaults to `SNAPSHOT_MAX_MESSAGES`).
+ * @returns newest `max` messages (a copy).
+ */
+export function capSnapshotMessages(messages, max = SNAPSHOT_MAX_MESSAGES) {
+  const list = Array.isArray(messages) ? messages : [];
+  const limit =
+    typeof max === "number" && Number.isFinite(max) && max >= 0 ? Math.floor(max) : SNAPSHOT_MAX_MESSAGES;
+  return list.length > limit ? list.slice(list.length - limit) : list.slice();
+}
+
+/**
+ * Age out tool-result payloads past the newest-message horizon. Older
+ * results keep `{ type, id, name }` plus an `aged: true` flag with a null
+ * result (renders as empty via `projectResultValue`, matches no search —
+ * the words already live in tool names, inputs, and summary prose).
+ * Pure: never mutates the input; already-aged parts pass through.
+ * @param messages - cleaned messages in order.
+ * @param keepFull - newest count keeping full payloads.
+ * @returns messages with aged payloads outside the horizon.
+ */
+export function ageSnapshotPayloads(messages, keepFull = SNAPSHOT_FULL_PAYLOAD_MESSAGES) {
+  const list = Array.isArray(messages) ? messages : [];
+  const keep =
+    typeof keepFull === "number" && Number.isFinite(keepFull) && keepFull >= 0
+      ? Math.floor(keepFull)
+      : SNAPSHOT_FULL_PAYLOAD_MESSAGES;
+  const cutoff = list.length - keep;
+  return list.map((message, index) => {
+    if (index >= cutoff || message === null || typeof message !== "object" || !Array.isArray(message.content)) {
+      return message;
+    }
+    let changed = false;
+    const content = message.content.map((part) => {
+      if (
+        part !== null &&
+        typeof part === "object" &&
+        part.type === "tool-result" &&
+        part.result !== null &&
+        part.result !== undefined &&
+        part.aged !== true
+      ) {
+        changed = true;
+        return { ...part, result: null, aged: true };
+      }
+      return part;
+    });
+    return changed ? { ...message, content } : message;
+  });
+}
+
+/**
+ * Compose one retained snapshot: clean, merge with the stored prefix,
+ * cap, age. The single composition point the wiring calls, so the
+ * bound can never be bypassed by a future caller.
+ * @param previousMessages - stored cleaned messages (or undefined).
+ * @param messages - raw request messages in order.
+ * @param bounds - optional `{ maxMessages, fullPayloadMessages }`
+ *   (defaults mirror `buildConfig`: 50 / 20).
+ * @returns `{ version, messages, count, lastID }`.
+ */
+export function retainSnapshotMessages(previousMessages, messages, bounds) {
+  const scope = bounds !== null && typeof bounds === "object" ? bounds : {};
+  const snap = buildSnapshot(messages);
+  const merged = mergeSnapshotMessages(previousMessages, snap.messages);
+  const aged = ageSnapshotPayloads(capSnapshotMessages(merged, scope.maxMessages), scope.fullPayloadMessages);
+  const lastID = lastMessageID(aged);
+  return {
+    version: SNAPSHOT_VERSION,
+    messages: aged,
+    count: aged.length,
+    ...(lastID === undefined ? {} : { lastID }),
   };
 }
 

@@ -23,16 +23,23 @@ import {
 } from "./adapter.mjs";
 import {
   MAX_SNAPSHOT_WRITE_BYTES,
+  SNAPSHOT_FULL_PAYLOAD_MESSAGES,
+  SNAPSHOT_MAX_MESSAGES,
   SNAPSHOT_VERSION,
+  ageSnapshotPayloads,
   buildSnapshot,
+  capSnapshotMessages,
   classifySnapshotStore,
   formatRecallReply,
   formatSearchReply,
   formatStatusText,
+  lastMessageID,
   makeSnapshotSession,
+  mergeSnapshotMessages,
   parseRecallArgs,
   parseSearchArgs,
   recallFromSnapshot,
+  retainSnapshotMessages,
   searchSnapshot,
   snapshotMessageToRecall,
   snapshotNeedsWrite,
@@ -171,6 +178,8 @@ const EXPECTED = JSON.stringify({
       hideTools: ["x"],
       noisePatterns: "CHECK_REGEXP",
       keepMessages: 6,
+      snapshotMaxMessages: 50,
+      snapshotFullPayloadMessages: 20,
     },
     { ...DEFAULT_PLUGIN_CONFIG, noisePatterns: [] },
   ],
@@ -343,6 +352,115 @@ check(
 );
 check("snapshot search defaults on empty config", searchSnapshot(snap.messages, "login").totalMatches >= 1, true);
 check("snapshot recall defaults on undefined budget", recallFromSnapshot(snap.messages, [{ start: 1, end: 1 }], undefined).recalled, 1);
+
+// Retention bounds: K=50 newest-wins, full payloads on the newest 20.
+check("retention constants", [SNAPSHOT_MAX_MESSAGES, SNAPSHOT_FULL_PAYLOAD_MESSAGES], [50, 20]);
+check("lastMessageID newest", lastMessageID([{ id: "a" }, { id: "b" }, { role: "user", content: [] }]), "b");
+check("lastMessageID none", lastMessageID([{ role: "user", content: [] }]), undefined);
+
+const MERGE_PREV = [
+  { id: "m1", role: "user", content: [{ type: "text", text: "needle-alpha-1" }] },
+  { id: "m2", role: "assistant", content: [{ type: "text", text: "ack" }] },
+  { id: "m3", role: "tool", content: [{ type: "tool-result", id: "t1", name: "read", result: { type: "json", value: { n: 1 } } }] },
+];
+const MERGE_NEXT = [...MERGE_PREV, { id: "m4", role: "user", content: [{ type: "text", text: "tail question" }] }];
+check(
+  "merge fast path appends suffix",
+  mergeSnapshotMessages(MERGE_PREV, MERGE_NEXT).map((m) => m.id),
+  ["m1", "m2", "m3", "m4"],
+);
+check(
+  "merge fallback dedupes by id",
+  mergeSnapshotMessages(MERGE_PREV, [...MERGE_NEXT, { id: "m2", role: "assistant", content: [{ type: "text", text: "dup" }] }]).map((m) => m.id),
+  ["m1", "m2", "m3", "m4"],
+);
+check("merge empty previous copies next", mergeSnapshotMessages(undefined, MERGE_NEXT).length, 4);
+check("merge does not mutate inputs", [MERGE_PREV.length, MERGE_NEXT.length], [3, 4]);
+check(
+  "merge keeps checkpoint inserted mid-list",
+  mergeSnapshotMessages(
+    [{ id: "m1", role: "user", content: [] }, { id: "m2", role: "assistant", content: [] }],
+    [
+      { id: "s1", role: "user", content: [{ type: "text", text: "checkpoint" }] },
+      { id: "m2", role: "assistant", content: [] },
+      { id: "m3", role: "user", content: [] },
+    ],
+  ).map((m) => m.id),
+  ["m1", "m2", "s1", "m3"],
+);
+check(
+  "merge duplicate anchor appends once",
+  mergeSnapshotMessages(
+    [{ id: "m1", role: "user", content: [] }, { id: "m2", role: "assistant", content: [] }],
+    [{ id: "m2", role: "assistant", content: [] }, { id: "m2", role: "assistant", content: [] }, { id: "m3", role: "user", content: [] }],
+  ).map((m) => m.id),
+  ["m1", "m2", "m3"],
+);
+check(
+  "merge id-less newest-wins",
+  mergeSnapshotMessages([{ role: "user", content: [] }], [{ role: "user", content: [{ type: "text", text: "new" }] }]),
+  [{ role: "user", content: [{ type: "text", text: "new" }] }],
+);
+
+const MANY = Array.from({ length: 55 }, (_, i) => ({ id: `k${i}`, role: "user", content: [{ type: "text", text: `t${i}` }] }));
+const CAPPED = capSnapshotMessages(MANY);
+check("cap keeps newest K", [CAPPED.length, CAPPED[0].id, CAPPED[49].id], [50, "k5", "k54"]);
+check("cap small list copies", capSnapshotMessages(MERGE_PREV).length, 3);
+
+const PAYLOADED = Array.from({ length: 25 }, (_, i) => ({
+  id: `p${i}`,
+  role: "tool",
+  content: [{ type: "tool-result", id: `t${i}`, name: "read", result: { type: "json", value: { i } } }],
+}));
+const AGED = ageSnapshotPayloads(PAYLOADED);
+check("age keeps newest payloads", AGED[24].content[0].result, { type: "json", value: { i: 24 } });
+check("age marks old payloads", [AGED[0].content[0].result, AGED[0].content[0].aged], [null, true]);
+check("age keeps identity", [AGED[0].content[0].name, AGED[0].content[0].id], ["read", "t0"]);
+check("age is idempotent", AGED[0].content[0], ageSnapshotPayloads(AGED)[0].content[0]);
+
+// Round-4 scenario: prefix needle must survive a compaction-like tail.
+const PREFIX_RAW = [
+  { id: "r1", role: "user", content: [{ type: "text", text: "plant needle-deep-9 in the vault" }] },
+  { id: "r2", role: "assistant", content: [{ type: "tool-call", id: "c1", name: "write", input: { f: "a" } }] },
+  { id: "r3", role: "tool", content: [{ type: "tool-result", id: "c1", name: "write", result: { type: "text", value: "ok needle-deep-9" } }] },
+];
+const PREV_CLEAN = buildSnapshot(PREFIX_RAW).messages;
+const TAIL_RAW = [
+  { id: "ckpt", role: "assistant", content: [{ type: "compaction", text: "checkpoint prose" }] },
+  { id: "r4", role: "user", content: [{ type: "text", text: "new tail turn" }] },
+];
+check(
+  "replace-mode control drops prefix",
+  searchSnapshot(buildSnapshot(TAIL_RAW).messages, "needle-deep-9").totalMatches,
+  0,
+);
+const RETAINED = retainSnapshotMessages(PREV_CLEAN, TAIL_RAW);
+check("retain keeps prefix across compaction", RETAINED.messages.map((m) => m.id), ["r1", "r2", "r3", "ckpt", "r4"]);
+check("retain meta", [RETAINED.count, RETAINED.lastID], [5, "r4"]);
+check("retain prefix needle searchable", searchSnapshot(RETAINED.messages, "needle-deep-9").totalMatches >= 1, true);
+const BIG_RAW = Array.from({ length: 60 }, (_, i) => ({ id: `b${i}`, role: "user", content: [{ type: "text", text: `bulk ${i}` }] }));
+const RETAINED_BIG = retainSnapshotMessages(undefined, BIG_RAW);
+check("retain caps at K", [RETAINED_BIG.count, RETAINED_BIG.messages[0].id], [50, "b10"]);
+check(
+  "config retention defaults",
+  [buildConfig({}).snapshotMaxMessages, buildConfig({}).snapshotFullPayloadMessages],
+  [50, 20],
+);
+check(
+  "config retention override",
+  buildConfig({ snapshotMaxMessages: 10, snapshotFullPayloadMessages: 5 }).snapshotMaxMessages,
+  10,
+);
+check(
+  "config retention invalid falls back",
+  buildConfig({ snapshotMaxMessages: -3, snapshotFullPayloadMessages: NaN }).snapshotMaxMessages,
+  50,
+);
+check(
+  "retain honors custom bounds",
+  retainSnapshotMessages(undefined, BIG_RAW, { maxMessages: 5 }).count,
+  5,
+);
 check("recall args seq range", parseRecallArgs("/vcc-recall 3-7"), { type: "seq", id: "3-7" });
 check("recall args bare seq", parseRecallArgs("seq 12"), { type: "seq", id: "seq 12" });
 check("recall args result", parseRecallArgs("/vcc-recall result 3"), { type: "result", id: "3" });
