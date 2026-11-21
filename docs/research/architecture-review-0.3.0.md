@@ -153,3 +153,17 @@ Session `ses_e7eaa04d` ("Improvements and next steps", operator-memory):
   recall/search/RPC readers unchanged. Next revisit queries
   `kv WHERE key LIKE '%:vcc-stats/%'` instead of inferring from
   survivors.
+
+- **Implemented 2026-11-21 (owner-approved same day):** append-mode
+  snapshots with a retention bound. `remember` merges each fresh
+  snapshot with the stored prefix (id-union in `mergeSnapshotMessages`,
+  no anchor), then retains newest-wins (`SNAPSHOT_MAX_MESSAGES=50`,
+  tool payloads age out past newest
+  `SNAPSHOT_FULL_PAYLOAD_MESSAGES=20` to `result:null` + `aged:true`).
+  Both bounds are config (`snapshotMaxMessages`,
+  `snapshotFullPayloadMessages`, defaults 50/20); per-turn rewrite is
+  O(bound), so the §3 O(n²) watch keeps meaning "exceptional". `seen`
+  entries now carry payloads (bounded by the cap) and the map is
+  FIFO-evicted at 20 sessions (`MAX_SEEN_SESSIONS`) — the old
+  "~200B/session, no eviction needed" line above is superseded;
+  cold-start storage re-read refills evicted sessions.

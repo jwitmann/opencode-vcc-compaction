@@ -176,8 +176,12 @@ prefix turn is not individually addressable. Fix direction
 retention bound (K=50 newest-wins as `snapshotMaxMessages` /
 `snapshotFullPayloadMessages` config, defaults 50/20), so prefix
 events persist as events and the O(n²) rewrite stays O(bound).
-Headless slash-command uninvokability stands as the separate,
-host-side half.
+Live-verified same day (`ses_e01b7c24bffeYehL1ULGqbiszp`): stored
+envelope holds 50/50 messages (cap active, 20KB), all 5 live needles
+recovered via search, prefix needles present as non-checkpoint
+events, `aged:true` flags present — the merge path fires in
+production. Headless slash-command uninvokability stands as the
+separate, host-side half.
 
 ## Result, round 3: rematch — asymmetry flipped, cause is noise (2026-11-21)
 
