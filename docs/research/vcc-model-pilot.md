@@ -1,7 +1,8 @@
 # Pilot: VCC vs compaction-model (single fight)
 
-**Status:** round 2 running (VCC: fresh absolute-path harness;
-contender: default summarizer).
+**Status:** round 2 complete — both plugins engaged and genuine.
+Verdict below; open follow-up is a fire-point-matched rematch
+(see fairness caveat).
 **Base:** host `opencode v2.3.2`, `@opencode/plugin 2.3.2`, `effect 4.1.0`.
 Ours `opencode-vcc-compaction@0.3.3` (`/tmp/pilot-vcc/`: absolute
 package path, maxTokens 2000, keepMessages 4, buffer 99%). Theirs
@@ -22,6 +23,8 @@ Both run headless from their own cwd:
 First turn omits `--session` and captures the id from `--format json`;
 later turns reuse it. After each turn, poll for the compaction row
 before continuing (so history accumulates first, then fires).
+Turn 1 (mango seeding) is pre-seeded in the harness files rather
+than run as a turn; the driver runs turns 2–6.
 
 ## Script (same both sides, in order)
 
@@ -88,6 +91,60 @@ Baseline failures found 2026-11-21 (both sides void, see verdict below):
   (`opencode-go/deepseek-v4.1-flash#max`, OpenAI-compatible via
   their Go adapter).
 
+## Result, round 2: both plugins genuine (2026-11-21)
+
+VCC: `ses_e01e68f4affeekxWLPUhlP7KXT`,
+compaction `msg_1fe19f82b001Qg0U34RWq15KYk`, 2497 chars, header
+`[opencode-vcc-compaction vcc-compiler-debug-2: 15 messages ->
+19 entries]` inside the collapsible `<details>` block. No
+usage/billing keys on the row — zero model call. Hook path proven
+live headless; the absolute-path harness fixed round 1.
+
+Contender: `ses_e01e5dee8ffeZhfOGT5tD00Vw1`, compaction
+`msg_1fe1c21e0002krcBIfPGfOXS2u`, 5272 chars, template
+`Objective / Requirements / Decisions / Work State / Active /
+Blocked / Next Move / Relevant Files / Important Context`.
+`metadata.compactionModel =
+"opencode-go/deepseek-v4.1-flash#max"` plus `compactionPlugin =
+"compaction-model"`, and their log shows six `summarized with
+opencode-go/deepseek-v4.1-flash#max` lines for the session, zero
+fallback lines — a genuine summarizer measurement.
+
+| | VCC side | model side |
+|---|---|---|
+| Summary chars | 2497 | 5272 |
+| N1 token | verbatim (in beta prompt echo) | verbatim |
+| N2 retry 17 | verbatim | verbatim |
+| N3 mango/TTL/p99 | missing — timing artifact (mango turn landed after the row fired) | verbatim |
+| N4 `ls` listing | verbatim (`needle-dir-alpha/`, `marker.txt`) | verbatim (full `ls -la`) |
+| N5 Fridays | verbatim | verbatim |
+| Continuation | pass (token exact, 17 + Fridays stated) | pass (token exact, 17 + Fridays stated) |
+| Row usage fields | absent | absent |
+| Metadata keys | `keepID` | `keepID`, `compactionModel`, `compactionPlugin` |
+| Wall latency | compacted at poll 1 | compacted at poll 1 |
+
+Read: VCC is a lossless slice (prompts + tool I/O verbatim, no
+synthesis, no paraphrase risk) at zero inference cost; the
+contender synthesizes (file states, line numbers, even the
+`We`-vs-`we` capitalization discrepancy) at one summarizer call
+plus a larger row. Both continuations pass, so neither dropped
+what the task needed.
+
+Fairness caveat: same `buffer: 99%`, but the VCC harness sets
+`maxTokens: 2000` while the contender harness sets no maxTokens
+(host default applies) — so VCC fired mid-script (row covers
+turns 1–3) and the contender fired after all 5 turns. The N3 gap
+is a fire-point artifact, not a quality signal. A strict rematch
+would set both harnesses to the same absolute budget (if their
+plugin respects host maxTokens — unverified).
+
+Conduct notes: the contender session wrote all note files into
+`examples/` instead of its own cwd `examples-model/` (its summary
+acknowledges the cwd confusion); files are gitignored pilot
+artifacts, `git status` clean. `/vcc-status` still reports
+COMMAND MISSING in `run` sessions — hook proven, command
+registration headless unverified (unchanged).
+
 ## Result, round 1: VOID both sides (control baseline only)
 
 Both sides ran all 5 content turns and auto-compacted at the same point
@@ -110,11 +167,4 @@ ENOENT '/home/package.json'`. Standalone `--print-logs` red herring
 Value banked: harness parity (identical trigger timing), scripts +
 needles + scorecard ready, control-baseline rows for "no plugin".
 
-| | VCC side | model side |
-|---|---|---|
-| Summary chars | | |
-| N1–N5 (each: verbatim / recall / paraphrase / invented / missing) | | |
-| Continuation | pass / fail | pass / fail |
-| Row usage fields | present / absent | present / absent |
-| Metadata keys | | |
-| Wall latency (compaction turn) | | |
+(Scorecard lives in the round-2 table above.)
