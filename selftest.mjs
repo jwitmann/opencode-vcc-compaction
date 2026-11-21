@@ -136,6 +136,22 @@ function runSuite() {
     { role: "tool", content: [{ type: "tool-result", id: "c9", name: "bash", result: { type: "text", value: "hi" } }] },
   ], buildConfig({})).summary.includes("(seq 2 -> result 3)");
   out.capFooter = compileCompaction(MSGS, buildConfig({ maxTokens: 30 })).summary.includes("cap enforced");
+  // Parity lock for the asymmetric-cut draft (docs/research/asymmetric-cut-design.md):
+  // today errors get the same uniform excerpt as successes and carry no flag.
+  // Implementation will flip these goldens deliberately (isError + split budgets).
+  const ERR_MSG = { id: "msg-e", role: "tool", content: [{ type: "tool-result", id: "t9", name: "bash", result: { type: "error", value: `boom: ${"x".repeat(500)}` } }] };
+  out.errorParity = {
+    node: toNode(ERR_MSG, 6),
+    excerpted: compileCompaction(
+      [
+        { id: "u1", role: "user", content: [{ type: "text", text: "run it" }] },
+        { id: "t9", role: "assistant", content: [{ type: "tool-call", id: "c9", name: "bash", input: "echo hi" }] },
+        ERR_MSG,
+        { id: "k1", role: "user", content: [{ type: "text", text: "keep me" }] },
+      ],
+      buildConfig({ keepMessages: 1, toolResultExcerptTokens: 8 }),
+    ).summary,
+  };
   return JSON.stringify(out);
 }
 
@@ -190,6 +206,10 @@ const EXPECTED = JSON.stringify({
   defaultConfig: "x",
   contiguousSeqs: true,
   capFooter: true,
+  errorParity: {
+    node: { seq: 6, message: { role: "tool", content: [{ type: "text", text: `[error] boom: ${"x".repeat(500)}` }], toolCallId: "t9" } },
+    excerpted: "<details>\n<summary>compaction checkpoint: 4 messages -> 4 entries</summary>\n\nThis is an automatically generated checkpoint condensing an earlier span of the conversation to free up context. Treat the captured context as established background and build on it without restating it. Continue the task directly from the messages that follow, without acknowledging this checkpoint.\n\n<compacted-checkpoint>\n\nRECALL: append-only log — nothing is lost. `recall` restores original content: type \"seq\", id \"3-7\"; \"result\", id \"3\"; \"checkpoint\", id \"1\" (`[checkpoint N]` = dropped). `search` finds by keyword.\n\n[opencode-vcc-compaction vcc-compiler-debug-2: 4 messages -> 4 entries]\n\n[user]\nrun it\n\n[assistant]\n* bash (seq 2)\n\n[tool]\n[error] boom: xxxxxxxxxxxxxxxxxx...(truncated from seq 3)\n...(elided from seq 3)\n...(elided before seq 3)xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n\n[user]\nkeep me\n\n</compacted-checkpoint>\n\n</details>",
+  },
 });
 
 function normalize(actual) {
