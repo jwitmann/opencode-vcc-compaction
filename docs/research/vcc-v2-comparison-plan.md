@@ -2,10 +2,10 @@
 
 **Scope:** ground the hypothetical VCC vs DCP/magic-compact question in the
 V2 reality: DCP + magic-compact peer the v1 SDK (`@opencode-ai/plugin`)
-and cannot load on this host. The stageable V2 fight is VCC vs
-`compaction-model`, with `cgp` / `esuyo` as trigger-layer notes and `fold`
-as a complement. No code changes in this doc; live runs need explicit
-approval + explicit `--model` per `AGENTS.md`.
+and cannot load on this host. The stageable fight is VCC vs the single
+top contender, `compaction-model` (the only other V2 summary-writer).
+No code changes in this doc; live runs need explicit approval +
+explicit `--model` per `AGENTS.md`.
 
 ## Base
 
@@ -15,48 +15,35 @@ approval + explicit `--model` per `AGENTS.md`.
 - Ours `opencode-vcc-compaction@0.3.3` (Effect-direct `compaction` hook,
   deterministic region compiler, `event.result = { summary, metadata:
   { keepID } }`, snapshot + `/vcc-recall|search|status`).
-- Contenders (npm registry, fetched 2026-11-21):
-  - `@madsoftwaredev/opencode-compaction-model@0.1.3` — V2
-    (`@opencode/plugin ^2.0.12`). Dedicated summarizer model/variant on
-    the `compaction` hook; validates headings, retries once, falls back
-    to host compaction; stamps `metadata.compactionModel`; abstains for
-    `claude-code`.
-  - `@cesarus777/opencode-cgp@0.6.0` — V2 (`@opencode/plugin 2.0.29`).
-    Compaction *policy* + monitoring (thresholds tokens/ratio/remaining,
-    observe/enforce, cooldown/hysteresis/dedup, per-agent policies).
-    Does not write summaries.
-  - `@esuyo/esuyo-opencode-compaction@1.0.0` — V2
-    (`@opencode/plugin ^2.2.6`, `engines opencode >=2.2.6 <3`). Fixed
-    256k-reference trigger (15% reserve), per-session on/off, debounced
-    checks, backoff, conservative measurement. Does not write summaries.
-  - `@madsoftwaredev/opencode-compaction-fold@0.1.2` — V2 TUI-only
-    (`@opencode/plugin ^2.1.0`). Folds rendered summaries into clickable
-    rows (`defaultExpanded: false`). Changes no history.
+- Top contender (npm registry, fetched 2026-11-21):
+  `@madsoftwaredev/opencode-compaction-model@0.1.3` — V2
+  (`@opencode/plugin ^2.0.12`). Dedicated summarizer model/variant on
+  the `compaction` hook; validates headings, retries once, falls back
+  to host compaction; stamps `metadata.compactionModel`; abstains for
+  `claude-code`.
+- Not contenders (no summary rivalry): `@cesarus777/opencode-cgp@0.6.0`
+  and `@esuyo/esuyo-opencode-compaction@1.0.0` govern trigger policy,
+  not summary content; `@madsoftwaredev/opencode-compaction-fold@0.1.2`
+  is display-layer. Any co-install check rides along inside the pilot
+  session, not as its own harness.
   - v1 (not stageable same-host): `@tarquinen/opencode-dcp@3.2.1`
     (local clone 3.1.15), `magic-compact@1.2.2` — both peer
     `@opencode-ai/plugin` (v1 SDK).
 
-## The stageable fight
+## The fight
 
-Main event: **VCC vs compaction-model** — same hook, opposite
-philosophy (verbatim + pointers + zero inference vs dedicated-model
-summaries). Decider is the needle test + hallucination audit + billed
-usage (our rows carry no usage fields; theirs must bill the summarizer).
-
-Undercard (trigger layer, no summary rivalry): VCC + `cgp` / `esuyo`
-stack — they decide *when* compaction fires, we decide *what* the
-summary contains. Test compatibility (co-install), not rivalry.
-
-Exhibition (display layer): `fold` co-install — their TUI folding vs
-our single-`<details>` checkpoint layer; check they compose.
+**VCC vs compaction-model** — same hook, opposite philosophy (verbatim
+text with pointers and zero inference vs dedicated-model summaries).
+Decider is the needle test + hallucination audit + billed usage (our rows carry
+no usage fields; theirs must bill the summarizer).
 
 ## Method (when approved)
 
 Same probe pattern as `compaction-probe-verdict.md`: one scratch
-harness per contender under `examples/`-style dirs, frozen scripted
+harness per side under `examples/`-style dirs, frozen scripted
 histories (task-shaped, tool calls + results + planted needles),
 version-tagged runs, frozen evidence, verdict in `docs/research/`.
-Metrics per contender: context tax, needle recovery rate, continuation
+Metrics per side: context tax, needle recovery rate, continuation
 success, billed usage (usage-field presence), determinism double-run
 (VCC only entrant), hook latency. No window-filling runs without
 explicit approval.
