@@ -6,7 +6,7 @@ text — and the model then reasons from it as if it were fact.**
 This plugin removes the model from that step. Port of [`dsh-compaction-vcc`](https://github.com/tingfeng-droid/dsh-compaction-vcc)
 (MIT, itself a fork of `TsFreddie/dsh-compaction-instant`), written
 directly against `@opencode/plugin/effect` (canonical runtime), so no
-convert-to-Effect task ever arises. Version: `opencode-vcc-compaction@0.3.2`.
+convert-to-Effect task ever arises. Version: `opencode-vcc-compaction@0.3.3`.
 
 On every `compaction` hook the plugin compiles history with a deterministic region compiler and sets `event.result = { summary, metadata: { keepID } }`. The host takes its `fromHook` short-circuit: the summary persists verbatim, the tail rebuilds from `keepID`, and **no model call is made** on the compaction path — proven live on host v2.3.2 (see [`docs/research/vcc-plugin-live-verdict.md`](https://github.com/jwitmann/opencode-vcc-compaction/blob/main/docs/research/vcc-plugin-live-verdict.md)).
 
