@@ -118,10 +118,23 @@ What this pilot did and did not test:
   first they do nothing (their replacement hook let all six
   through native).
 
-Bottom line: no reason to change our design or defaults. For
-users on default host settings, Live Compact's default trigger
-never fires — that is their tuning question, not our problem.
-If a shave-vs-checkpoint quality fight is wanted, it needs a
-workload built for their trigger. No benchmark needed beyond
-this: survival is 6/6 both sides, cost is zero-model-call both
-sides (their shaver is LLM-free too).
+Bottom line: no reason to change our design or defaults. But
+the "never fires" claim needs its scope: it never fired under
+our aggressive 99% harness buffer, which fires native
+compactions early and often. Under production host defaults
+(bigger windows, rarer native fires) their cutter would get its
+turn — this pilot proves the mismatch regime exists, not that
+their shaving fails.
+
+Fairness audit (noted same day): procedurally clean (identical
+seeds/host/model/turns, their plugin loaded, nothing changed
+mid-flight). Structurally tilted against them: the 99% buffer is
+a harness choice from round 5 designed to force compactions
+cheaply; their 20k default trigger never met; our filler turns
+are mostly recent tool rounds which their protection rules
+cover; we ran tuned-down (maxTokens 2000) while they ran stock.
+A fair quality comparison needs their trigger met — lower it via
+their options to match our fire cadence, or run production host
+defaults so the window grows past 20k. No benchmark needed
+beyond this for our claims: survival is 6/6 both sides, cost is
+zero-model-call both sides (their shaver is LLM-free too).
