@@ -7,6 +7,34 @@ Single source: the tag-triggered workflow publishes each version's
 section as the GitHub release notes, so this file and the release
 page never diverge.
 
+## [v0.4.0] - 2026-11-22
+
+### Features
+
+- asymmetric tool-result cut (error budget, success pointers, fail-open) ([`733cad4`](https://github.com/jwitmann/opencode-vcc-compaction/commit/733cad4bab1da42ed00fb6afa96a810c5156808d))
+- per-session compaction on/off switch (/vcc-compaction) ([`a6b9dbc`](https://github.com/jwitmann/opencode-vcc-compaction/commit/a6b9dbcdbe838e55499522a5895506748a696b6f))
+- stamp engine rev + config hash in metadata; validate outcome before install ([`3fd7beb`](https://github.com/jwitmann/opencode-vcc-compaction/commit/3fd7beb9f98fd3b638e0c292df6b5037d74afc01))
+
+### Documentation
+
+- Live Compact pilot verdict (cutter never engaged, 6/6 both sides) ([`3a0d82b`](https://github.com/jwitmann/opencode-vcc-compaction/commit/3a0d82b7431a2e4b9f1cff3c0d1bb6d658f4c8c0))
+- harness-bias caveat on Live Compact verdict (99% buffer starves 20k trigger) ([`762c12f`](https://github.com/jwitmann/opencode-vcc-compaction/commit/762c12f9228135b8c0539e125c2eb1696724aee3))
+- fairness audit on Live Compact verdict (tilted harness, scope the never-fires claim) ([`8842f4e`](https://github.com/jwitmann/opencode-vcc-compaction/commit/8842f4e7437d3dc80c84666d73e96e921799da50))
+- Live Compact engagement probe (tuned trigger, still zero engagement) ([`1f1871e`](https://github.com/jwitmann/opencode-vcc-compaction/commit/1f1871e741d77f2abd620ff868861a8bb49cab77))
+- mark live-compact pilot complete (fix stale running status) ([`fcc3296`](https://github.com/jwitmann/opencode-vcc-compaction/commit/fcc3296a5449bd230366a0d5cdadf1616a69b3d9))
+- badge row (npm, node, MIT, CI, OpenCode V2) ([`4be0da0`](https://github.com/jwitmann/opencode-vcc-compaction/commit/4be0da03415f5f8d78f66c96a0b590aaf602d524))
+- live checkpoint-degradation audit verdict (native-over-VCC missing, control 4/4) ([`a288dbd`](https://github.com/jwitmann/opencode-vcc-compaction/commit/a288dbd378aeb265ec0751bbb9c1d7df11420a56))
+- asymmetric-cut draft design + parity-lock vectors (no behavior change) ([`7a822d9`](https://github.com/jwitmann/opencode-vcc-compaction/commit/7a822d961d6b36962bb1c89bdfa5f0fe492bb602))
+- close prefix-cache floor as investigated, no change ([`c42c108`](https://github.com/jwitmann/opencode-vcc-compaction/commit/c42c10851b7d68871aa6df393c6a2160cde3178f))
+- sync command counts, close item 4/6 standing-list entries ([`6465b4a`](https://github.com/jwitmann/opencode-vcc-compaction/commit/6465b4a1c105cd6d74f5c86ba7ae3d889fdff55d))
+- collapse non-applicable skip list to one line ([`db69564`](https://github.com/jwitmann/opencode-vcc-compaction/commit/db69564020d5b533d549268019da5b9121fb9efc))
+- record profiled cost shape in Performance section ([`dc04c2c`](https://github.com/jwitmann/opencode-vcc-compaction/commit/dc04c2c5c30432558b0f6457988f2f16763d339d))
+
+### Other
+
+- checkpoint-degradation audit vector (verbatim survival, ours + native) ([`90542b8`](https://github.com/jwitmann/opencode-vcc-compaction/commit/90542b860913e8cec12ded46c1666de96ac6310e))
+- length-density guard before tokenization in over-budget checks ([`9cf49f8`](https://github.com/jwitmann/opencode-vcc-compaction/commit/9cf49f8be2b4152f873a248132bef926c1e426a3))
+
 ## [v0.3.4] - 2026-11-21
 
 ### Features
