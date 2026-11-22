@@ -107,14 +107,27 @@ Park (needs owner decision / new surface — do not expand scope here):
   version that fits us: our compiler is deterministic, so identical
   windows yield byte-identical summaries — retries/branches/recompiles
   of unchanged history are cache-friendly for free, where model-written
-  summaries never are. Parked.
+  summaries never are.
+   Update (2026-11-22): investigated, no change. The floor rule fits
+   per-turn shaving (confine mutation to the tail, keep the cached
+   front stable); checkpoint-at-fire replaces the compacted span with
+   a fresh front summary by construction, so there is no front-prefix
+   mutation to restrain. The transferable properties already hold:
+   keep tail rebuilt verbatim from `keepID` (never rewritten),
+   deterministic byte-identical summaries on unchanged windows
+   (engine double-run vectors), snapshot and `/vcc-*` reads outside
+   the prompt. Anything further would need host cache-behavior
+   grounding (provider, caching flags, hit exposure) we do not have;
+   no compiler change.
 
 ## Standing list (the whole board)
 
 - Green-light anytime (pure engineering, no live run): metadata stamping,
   validate-before-install, checkpoint-degradation audit.
 - Awaiting owner decision: per-session on/off switch, provider-abstain
-  investigation, asymmetric cut policy, prefix-cache cut floor.
+  investigation.
+- Decided (2026-11-22): asymmetric cut policy shipped (`733cad4`);
+  prefix-cache cut floor investigated, no change (see Park note above).
 - Awaiting live-run approval: VCC vs compaction-model comparison
   (plus cgp/esuyo/fold co-install checks).
 
