@@ -260,7 +260,7 @@ pointers against the per-session snapshot.
 
 Server slash commands (plus the `./tui` companion below):
 `/vcc-recall`, `/vcc-search`,
-`/vcc-status`. Command invocations cannot read history directly, so the
+`/vcc-status`, `/vcc-compaction`. Command invocations cannot read history directly, so the
 `context` hook (with `compaction` as backup) persists a cleaned snapshot
 of the session's messages to `ctx.storage` (`vcc-snapshot/<sessionID>`,
 growth-guarded by version/count/lastID); the commands read that
@@ -276,8 +276,14 @@ its age.
 - `/vcc-search <keyword-or-regex>` — e.g. `/vcc-search login`.
   Replies with `(seq N)` hits plus a recall call-to-action.
 - `/vcc-status` — engine revision, resolved config
-  (`maxTokens`/`keepMessages`/reasoning/hide/noise counts), and snapshot
+  (`maxTokens`/`keepMessages`/reasoning/hide/noise counts), per-session
+  compaction switch state, and snapshot
   freshness (version, message count, lastID, age).
+- `/vcc-compaction [on|off]` — per-session switch for deterministic
+  compaction (stored under `vcc-switch/<sessionID>`, defaults on).
+  Bare invocation reports state; `off` makes the hook abstain (host
+  native fallback) while snapshots keep running, so recall/search
+  still work when re-enabled.
 
 Results travel as an RPC event the TUI companion renders: each command
 emits `rpc.opencode-vcc-compaction.replied` and returns void with no

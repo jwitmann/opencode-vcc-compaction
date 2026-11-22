@@ -75,13 +75,16 @@ Park (needs owner decision / new surface — do not expand scope here):
 
 - Per-session on/off switch (esuyo `/compaction on|off`, DCP `/dcp manual
   [on|off]` — persisted per-session, feedback via ignored message): would
-  need a new command or storage flag. Parked.
+  need a new command or storage flag.
+   Update (2026-11-22): approved — single command with `on|off`
+   (no separate commands; bare invocation reports state). In progress.
 - Provider-specific abstain (their `claude-code` carve-out — note:
   `claude-code` is a provider *inside* OpenCode, typically the
   subscription/plan route via the `@openchamber/opencode-claude` bridge,
   with its own session/compaction bookkeeping): check whether any V2
   provider route bypasses `event.result` the way their bridge does.
-  Parked as investigation.
+  Update (2026-11-22): deferred — no evidence of harm on the
+  routes in use; revisit if a route misbehaves with our result.
 - Asymmetric cut policy (live-compact pointer rule): giant successful
   tool results → pointers, failures keep exit code + full diagnostics
   (skip the cut if diagnostics don't fit the budget). Translation sketch
@@ -124,8 +127,9 @@ Park (needs owner decision / new surface — do not expand scope here):
 
 - Green-light anytime (pure engineering, no live run): metadata stamping,
   validate-before-install, checkpoint-degradation audit.
-- Awaiting owner decision: per-session on/off switch, provider-abstain
-  investigation.
+- Awaiting owner decision: none (all Park items resolved 2026-11-22).
+- In progress: per-session on/off switch (item 4).
+- Deferred: provider-abstain investigation (item 5, revisit on evidence).
 - Decided (2026-11-22): asymmetric cut policy shipped (`733cad4`);
   prefix-cache cut floor investigated, no change (see Park note above).
 - Awaiting live-run approval: VCC vs compaction-model comparison

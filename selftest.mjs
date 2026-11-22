@@ -30,6 +30,7 @@ import {
   buildSnapshot,
   capSnapshotMessages,
   classifySnapshotStore,
+  classifySwitchStore,
   formatRecallReply,
   formatSearchReply,
   formatStatusText,
@@ -38,12 +39,14 @@ import {
   mergeSnapshotMessages,
   parseRecallArgs,
   parseSearchArgs,
+  parseSwitchArgs,
   recallFromSnapshot,
   retainSnapshotMessages,
   searchSnapshot,
   snapshotMessageToRecall,
   snapshotNeedsWrite,
   snapshotWriteBytes,
+  switchKey,
   updateWatchStats,
 } from "./snapshot.mjs";
 import { parseSeqSpec, recallSession, resolveRecallReference } from "./engine/recall.mjs";
@@ -568,6 +571,28 @@ check(
 check("search args strips prefix", parseSearchArgs("/vcc-search login"), { pattern: "login" });
 check("search args raw pattern", parseSearchArgs("foo.*bar"), { pattern: "foo.*bar" });
 check("search args empty is usage", "error" in parseSearchArgs("/vcc-search"), true);
+check("switch args on", parseSwitchArgs("/vcc-compaction on"), { action: "on" });
+check("switch args off", parseSwitchArgs("off"), { action: "off" });
+check("switch args bare is query", parseSwitchArgs("/vcc-compaction"), { action: "query" });
+check("switch args case-insensitive", parseSwitchArgs("/vcc-compaction OFF"), { action: "off" });
+check("switch args garbage is usage", "error" in parseSwitchArgs("/vcc-compaction maybe"), true);
+check("switch store absent defaults on", classifySwitchStore(undefined), { status: "ready", enabled: true });
+check("switch store empty envelope defaults on", classifySwitchStore({}), { status: "ready", enabled: true });
+check("switch store garbage defaults on", classifySwitchStore({ enabled: "yes" }), { status: "ready", enabled: true });
+check("switch store off survives", classifySwitchStore({ version: 1, enabled: false }), { status: "ready", enabled: false });
+check("switch key lives under vcc-switch", switchKey("abc"), "vcc-switch/abc");
+check("switch store on round-trips", classifySwitchStore({ version: 1, enabled: true }), { status: "ready", enabled: true });
+check("switch store classifies failed", classifySwitchStore({ __vccReadFailed: true }), { status: "failed" });
+check(
+  "status text reports switch off",
+  formatStatusText(undefined, {}, "r", 0, false).includes("compaction: off"),
+  true,
+);
+check(
+  "status text reports switch on",
+  formatStatusText(undefined, {}, "r", 0, true).includes("compaction: on"),
+  true,
+);
 const statusText = formatStatusText(
   { version: 1, messages: snap.messages, count: snap.count, lastID: snap.lastID, writtenAt: 1000000 },
   { maxTokens: 8192, keepMessages: 6, includeReasoning: false, hideTools: [], noisePatterns: [] },

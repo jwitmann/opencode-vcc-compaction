@@ -7,19 +7,24 @@ import {
   COMPILER_REV,
   MAX_SNAPSHOT_WRITE_BYTES,
   SNAPSHOT_KEY_PREFIX,
+  SWITCH_KEY_PREFIX,
+  SWITCH_VERSION,
   WATCH_STATS_KEY_PREFIX,
   classifySnapshotStore,
+  classifySwitchStore,
   formatRecallReply,
   formatSearchReply,
   formatStatusText,
   parseRecallArgs,
   parseSearchArgs,
+  parseSwitchArgs,
   recallFromSnapshot,
   resolveRecallSelections,
   retainSnapshotMessages,
   searchSnapshot,
   snapshotNeedsWrite,
   snapshotWriteBytes,
+  switchKey,
   updateWatchStats,
 } from "./snapshot.mjs"
 
@@ -87,9 +92,9 @@ export default Plugin.define({
     // map itself is bounded: cold-start re-read refills evicted sessions.
     const MAX_SEEN_SESSIONS = 20
 
-    const readStored = (sessionID: string, label: string) =>
+    const readStored = (sessionID: string, label: string, keyPrefix: string = SNAPSHOT_KEY_PREFIX) =>
       Effect.catch(
-        ctx.storage.get(`${SNAPSHOT_KEY_PREFIX}${sessionID}`),
+        ctx.storage.get(`${keyPrefix}${sessionID}`),
         (error) =>
           Effect.sync(() => {
             console.warn(`[opencode-vcc-compaction] ${label}: snapshot read failed:`, error)
@@ -327,30 +332,48 @@ export default Plugin.define({
                   (event as { messages: unknown }).messages,
                 ),
             () =>
-              Effect.sync(() => {
-            let outcome
-            try {
-              outcome = compileCompaction(event.messages, config)
-            } catch (error) {
-              console.warn("[opencode-vcc-compaction] adapter failed; leaving result unset:", error)
-              return
-            }
-            if (outcome === undefined) {
-              console.warn(
-                "[opencode-vcc-compaction] adapter abstained (no message id at/after the keep cut); leaving result unset for host fallback",
-              )
-              return
-            }
-            if (outcome.stats.keptErrorWhole > 0) {
-              console.warn(
-                `[opencode-vcc-compaction] fail-open: kept ${outcome.stats.keptErrorWhole} error-diagnosis row(s) whole past the cap; successes were cut first`,
-              )
-            }
-            event.result = {
-              summary: outcome.summary,
-              metadata: { keepID: outcome.keepID },
-            }
-          }),
+              Effect.flatMap(
+                readStored((event as { sessionID: string }).sessionID, "vcc-compaction-switch", SWITCH_KEY_PREFIX),
+                (switchStored) => {
+                  // Per-session switch (`/vcc-compaction off`): skip our
+                  // summary and let the host fall back to native. Absent
+                  // or unreadable switch state keeps current behavior
+                  // (fail open = on); snapshots above keep running so
+                  // recall/search still work when re-enabled.
+                  const switched = classifySwitchStore(switchStored as never)
+                  if (switched.status === "ready" && switched.enabled === false) {
+                    return Effect.sync(() => {
+                      console.warn(
+                        "[opencode-vcc-compaction] switch off for this session; leaving result unset for host fallback",
+                      )
+                    })
+                  }
+                  return Effect.sync(() => {
+                    let outcome
+                    try {
+                      outcome = compileCompaction(event.messages, config)
+                    } catch (error) {
+                      console.warn("[opencode-vcc-compaction] adapter failed; leaving result unset:", error)
+                      return
+                    }
+                    if (outcome === undefined) {
+                      console.warn(
+                        "[opencode-vcc-compaction] adapter abstained (no message id at/after the keep cut); leaving result unset for host fallback",
+                      )
+                      return
+                    }
+                    if (outcome.stats.keptErrorWhole > 0) {
+                      console.warn(
+                        `[opencode-vcc-compaction] fail-open: kept ${outcome.stats.keptErrorWhole} error-diagnosis row(s) whole past the cap; successes were cut first`,
+                      )
+                    }
+                    event.result = {
+                      summary: outcome.summary,
+                      metadata: { keepID: outcome.keepID },
+                    }
+                  })
+                },
+              ),
         ),
       ),
     )
@@ -470,15 +493,22 @@ export default Plugin.define({
                   if (classified.status === "failed") {
                     return reply(input, "/vcc-status", "**/vcc-status** — snapshot read failed, try again in a moment")
                   }
-                  return reply(
-                    input,
-                    "/vcc-status",
-                    formatStatusText(
-                      classified.status === "ready" ? classified.stored as never : undefined,
-                      config as never,
-                      COMPILER_REV as string,
-                      Date.now(),
-                    ),
+                  return Effect.flatMap(
+                    readStored(input.sessionID, "vcc-compaction-switch", SWITCH_KEY_PREFIX),
+                    (switchStored) => {
+                      const switched = classifySwitchStore(switchStored as never)
+                      return reply(
+                        input,
+                        "/vcc-status",
+                        formatStatusText(
+                          classified.status === "ready" ? classified.stored as never : undefined,
+                          config as never,
+                          COMPILER_REV as string,
+                          Date.now(),
+                          switched.status === "ready" ? switched.enabled : undefined,
+                        ),
+                      )
+                    },
                   )
                 },
               ),
@@ -492,6 +522,72 @@ export default Plugin.define({
                   () =>
                     Effect.sync(() => {
                       console.warn("[opencode-vcc-compaction] vcc-status failed:", cause)
+                    }),
+                ),
+            ),
+        })
+        editor.add({
+          name: "vcc-compaction",
+          description: "Turn deterministic compaction on|off for this session (bare reports state).",
+          execute: (input) =>
+            Effect.catchCause(
+              Effect.flatMap(
+                Effect.sync(() => parseSwitchArgs(promptText(input))),
+                (parsed) => {
+                  if ("error" in parsed) {
+                    return reply(input, "/vcc-compaction", `**/vcc-compaction** — ${parsed.error}`)
+                  }
+                  return Effect.flatMap(
+                    readStored(input.sessionID, "vcc-compaction", SWITCH_KEY_PREFIX),
+                    (stored) => {
+                      const switched = classifySwitchStore(stored as never)
+                      if (switched.status === "failed") {
+                        return reply(input, "/vcc-compaction", "**/vcc-compaction** — switch read failed, try again in a moment")
+                      }
+                      if (parsed.action === "query") {
+                        return reply(
+                          input,
+                          "/vcc-compaction",
+                          `**/vcc-compaction** — compaction is ${switched.enabled ? "on" : "off"} for this session`,
+                        )
+                      }
+                      const next = {
+                        version: SWITCH_VERSION,
+                        enabled: parsed.action === "on",
+                        writtenAt: Date.now(),
+                      }
+                      return Effect.flatMap(
+                        Effect.catch(
+                          ctx.storage.set(switchKey(input.sessionID), next),
+                          (error) =>
+                            Effect.sync(() => {
+                              console.warn("[opencode-vcc-compaction] switch write failed:", error)
+                              return { __vccWriteFailed: true as const }
+                            }),
+                        ),
+                        (written) =>
+                          typeof written === "object" && written !== null && "__vccWriteFailed" in written
+                            ? reply(input, "/vcc-compaction", "**/vcc-compaction** — switch write failed, try again in a moment")
+                            : reply(
+                                input,
+                                "/vcc-compaction",
+                                `**/vcc-compaction** — compaction is now ${next.enabled ? "on" : "off"} for this session${next.enabled ? "" : " (hook abstains; snapshots keep running)"}`,
+                              ),
+                      )
+                    },
+                  )
+                },
+              ),
+              (cause) =>
+                Effect.catchCause(
+                  ctx.session.prompt({
+                    sessionID: input.sessionID,
+                    text: "**/vcc-compaction** — command failed, try again in a moment",
+                    delivery: input.delivery,
+                  }),
+                  () =>
+                    Effect.sync(() => {
+                      console.warn("[opencode-vcc-compaction] vcc-compaction failed:", cause)
                     }),
                 ),
             ),

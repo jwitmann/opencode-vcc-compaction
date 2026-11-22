@@ -378,15 +378,66 @@ export function parseSearchArgs(text) {
 }
 
 /**
+ * Per-session compaction switch: `/vcc-compaction on|off` (bare reports
+ * state). Stored under `SWITCH_KEY_PREFIX + sessionID` as
+ * `{ version, enabled, writtenAt }` — a separate key from the snapshot
+ * envelope (mirroring `WATCH_STATS_KEY_PREFIX`), so the switch works
+ * before any snapshot exists and never changes the snapshot shape.
+ * Absent/empty/garbage reads mean ON (fail open = current behavior).
+ */
+export const SWITCH_VERSION = 1;
+
+/** Storage key prefix; full key is `${SWITCH_KEY_PREFIX}${sessionID}`. */
+export const SWITCH_KEY_PREFIX = "vcc-switch/";
+
+/**
+ * Full storage key for a session's compaction switch.
+ * @param sessionID - session id.
+ * @returns key under `SWITCH_KEY_PREFIX` (never the snapshot key).
+ */
+export function switchKey(sessionID) {
+  return `${SWITCH_KEY_PREFIX}${sessionID}`;
+}
+
+/**
+ * Parse a `/vcc-compaction` invocation.
+ * @param text - raw invocation prompt text.
+ * @returns `{ action: "on" | "off" | "query" }`, or `{ error }` with usage text.
+ */
+export function parseSwitchArgs(text) {
+  const raw = String(text ?? "").replace(/^\s*\/vcc-compaction\b/iu, "").trim().toLowerCase();
+  if (raw === "") return { action: "query" };
+  if (raw === "on") return { action: "on" };
+  if (raw === "off") return { action: "off" };
+  return { error: "usage: /vcc-compaction [on|off] (bare reports state)" };
+}
+
+/**
+ * Classify a switch-key storage read for command/hook wiring.
+ * @param stored - raw `ctx.storage.get` value (or the read-failure sentinel).
+ * @returns `{ status: "failed" }`, or `{ status: "ready", enabled }`
+ * (absent/empty/garbage reads resolve enabled=true: the switch defaults
+ * ON and every failure path keeps current behavior).
+ */
+export function classifySwitchStore(stored) {
+  if (stored !== undefined && stored !== null && stored.__vccReadFailed === true) return { status: "failed" };
+  const envelope = stored !== null && typeof stored === "object" ? stored : undefined;
+  if (envelope?.enabled === false) return { status: "ready", enabled: false };
+  return { status: "ready", enabled: true };
+}
+
+/**
  * Format a `/vcc-status` reply from the stored snapshot and live config.
  * Pure (caller supplies `now`); never throws on malformed snapshots.
  * @param stored - storage value (`{ version, messages, count, lastID, writtenAt }` or undefined).
  * @param config - resolved plugin config from `buildConfig`.
  * @param rev - engine revision string.
  * @param now - current epoch ms (for age computation).
+ * @param enabled - per-session switch state (`classifySwitchStore` outcome);
+ * omitted keeps the historical shape byte-identical (no compaction line).
  * @returns status text.
  */
-export function formatStatusText(stored, config, rev, now) {
+export function formatStatusText(stored, config, rev, now, enabled) {
   const lines = [`**/vcc-status** — opencode-vcc-compaction (engine ${rev})`];
   const cfg = config !== null && typeof config === "object" ? config : {};
   const maxTokens = typeof cfg.maxTokens === "number" ? cfg.maxTokens : "?";
@@ -395,6 +446,8 @@ export function formatStatusText(stored, config, rev, now) {
   const hide = Array.isArray(cfg.hideTools) ? cfg.hideTools.length : 0;
   const noise = Array.isArray(cfg.noisePatterns) ? cfg.noisePatterns.length : "?";
   lines.push(`config: maxTokens=${maxTokens} keepMessages=${keepMessages} reasoning=${reasoning} hideTools=${hide} noisePatterns=${noise}`);
+  if (enabled === true) lines.push("compaction: on (deterministic checkpoint at fire)");
+  if (enabled === false) lines.push("compaction: off for this session (hook abstains; host native fallback)");
   const snap = stored !== null && typeof stored === "object" ? stored : undefined;
   const messages = Array.isArray(snap?.messages) ? snap.messages : undefined;
   if (messages === undefined) {
