@@ -145,6 +145,16 @@ Two things to read off this table:
   text. Raise the cap if you want larger checkpoints, at the cost of more
   context per compaction.
 
+Cost shape (profiled 2026-11-22, 10k-message compaction): ~96% of the
+time is the region compile (~70% of that is tokenization — counting is
+the work, not waste), and the elision passes keep a running token total
+rather than recounting per eviction. Mapping, framing, config hashing,
+outcome validation, and snapshot retain together round to ~0%. The
+hook additions cost one storage read plus microseconds per compaction
+event and nothing per turn. Over-budget checks test the O(1)
+length-density guard before tokenizing (semantics-preserving; see the
+engine header), so small tool results skip counting entirely.
+
 Caveats: synthetic repetitive text, one machine, one node version —
 indicative, not a benchmark. Real sessions vary with text shape
 (long tool outputs and base64 blobs cost more per message), but the
