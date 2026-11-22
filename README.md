@@ -10,7 +10,7 @@ This plugin removes the model from that step. Port of [`dsh-compaction-vcc`](htt
 directly against `@opencode/plugin/effect` (canonical runtime), so no
 convert-to-Effect task ever arises.
 
-On each `compaction` hook the plugin compiles history with a deterministic region compiler and, when a keepID can be picked, sets `event.result = { summary, metadata: { keepID } }`. The host takes its `fromHook` short-circuit: the summary persists verbatim, the tail rebuilds from `keepID`, and **no model call is made** on the compaction path — proven live on host v2.3.2 (see [`docs/research/vcc-plugin-live-verdict.md`](https://github.com/jwitmann/opencode-vcc-compaction/blob/main/docs/research/vcc-plugin-live-verdict.md)).
+On each `compaction` hook the plugin compiles history with a deterministic region compiler and, when a keepID can be picked, sets `event.result = { summary, metadata: { keepID, vccRev, vccConfigHash } }`. The host takes its `fromHook` short-circuit: the summary persists verbatim, the tail rebuilds from `keepID`, and **no model call is made** on the compaction path — proven live on host v2.3.2 (see [`docs/research/vcc-plugin-live-verdict.md`](https://github.com/jwitmann/opencode-vcc-compaction/blob/main/docs/research/vcc-plugin-live-verdict.md)).
 
 Why verbatim: a model asked to summarize fills what it cannot quite recall with plausible wording — invented, fluent, and then treated as factual premise. This engine only moves original text, never rewriting a character: every elision carries a `(seq N)` pointer back to its source event. The model sees original tokens or explicitly marked pointers. Nothing else.
 
@@ -18,7 +18,7 @@ Why verbatim: a model asked to summarize fills what it cannot quite recall with 
 - **Verbatim** — prior checkpoints carried over word for word, never re-summarized.
 - **Deterministic** — same messages + config → byte-identical summary.
 - **Measured** — full sweep in [Performance](#performance).
-- **Fail-safe** — when no keepID can be picked, the hook abstains and the host falls back to model compaction. Never a broken summary.
+- **Fail-safe** — when no keepID can be picked, or the compiled outcome fails validation (blank summary, missing keepID — nothing a retry could fix, the compiler is deterministic), the hook abstains and the host falls back to model compaction. Never a broken summary.
 
 ## How it works
 
@@ -27,12 +27,14 @@ compile nodes, runs the deterministic reference compiler (`engine/`),
 and sets:
 
 ```js
-event.result = { summary, metadata: { keepID } }
+event.result = { summary, metadata: { keepID, vccRev, vccConfigHash } }
 ```
 
 `keepID` is the id of the first message the host must keep: the last
 `keepMessages` request messages stay verbatim, everything older compiles
-into the summary. When no message id exists at/after the keep cut, the
+into the summary. `vccRev` (engine revision) and `vccConfigHash` (stable
+hash of the resolved config) stamp which compiler and knobs produced the
+checkpoint. When no message id exists at/after the keep cut, the
 adapter abstains — `result` stays unset and the host falls back to model
 compaction. Never a broken summary.
 
@@ -116,8 +118,8 @@ information.
 - **Measured** — 4,998 mixed messages compile to a ~28k-character summary
   in ~0.4 s on the dev machine, byte-identical across runs (see
   Performance).
-- **Fail-safe** — no keepID, no result: the host falls back to model
-  compaction rather than persisting a broken summary.
+- **Fail-safe** — no keepID (or a failed outcome validation), no result:
+  the host falls back to model compaction rather than persisting a broken summary.
 
 ## Performance
 

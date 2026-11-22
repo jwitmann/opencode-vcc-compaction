@@ -317,11 +317,60 @@ export function buildConfig(options) {
 }
 
 /**
+ * Stable hash of a resolved config for metadata stamping (lets later
+ * sessions tell which engine rev + config produced a checkpoint).
+ * Pure and dependency-free (FNV-1a over a normalized projection):
+ * compiled `noisePatterns` RegExps hash by source + flags (they are not
+ * JSON-stable) and non-finite numbers by name. Unhashable input
+ * (circular, BigInt) hashes to `00000000` rather than throwing, so the
+ * stamp can never veto a compaction.
+ * @param config - resolved config from `buildConfig`.
+ * @returns 8 lowercase hex chars; stable for equal configs.
+ */
+export function configHash(config) {
+  const input = config !== null && typeof config === "object" ? config : {};
+  let normalized;
+  try {
+    normalized = JSON.stringify(input, (_key, value) => {
+      if (value instanceof RegExp) return `regexp:${value.source}/${value.flags}`;
+      if (typeof value === "number" && !Number.isFinite(value)) return `nonfinite:${String(value)}`;
+      return value;
+    }) ?? "{}";
+  } catch {
+    return "00000000";
+  }
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < normalized.length; index += 1) {
+    hash ^= normalized.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+/**
+ * Validate a compiled outcome before the hook installs it (the
+ * validate-before-install discipline: never install an invalid summary).
+ * The compiler is deterministic, so there is nothing a retry could fix —
+ * an invalid outcome abstains straight to host fallback, exactly like
+ * the id-less abstain path. Checks only what the host needs to take the
+ * result: a non-blank summary and a non-empty keepID.
+ * @param outcome - `compileCompaction` result (or anything else on failure paths).
+ * @returns true when the outcome is safe to install as `event.result`.
+ */
+export function isValidCompactionOutcome(outcome) {
+  if (outcome === null || outcome === undefined || typeof outcome !== "object") return false;
+  if (typeof outcome.summary !== "string" || outcome.summary.trim().length === 0) return false;
+  if (typeof outcome.keepID !== "string" || outcome.keepID.trim() === "") return false;
+  return true;
+}
+
+/**
  * Compile one compaction request deterministically.
  * @param messages - request messages in order.
  * @param config - resolved config from `buildConfig`.
- * @returns `{ summary, keepID, stats, capped }`, or undefined to abstain
- *   (no id at/after the cut — the hook must leave `result` unset).
+ * @returns `{ summary, keepID, stats, capped, vccRev, vccConfigHash }`,
+ *   or undefined to abstain (no id at/after the cut — the hook must leave
+ *   `result` unset).
  */
 export function compileCompaction(messages, config = buildConfig({})) {
   const list = Array.isArray(messages) ? messages : [];
@@ -341,5 +390,12 @@ export function compileCompaction(messages, config = buildConfig({})) {
     .map((block) => block.text)
     .join("\n\n");
   const summary = wrapCheckpointSummary(body, `compaction checkpoint: ${nodes.length} messages -> ${region.entries.length} entries`);
-  return { summary, keepID, stats: region.stats, capped: region.capped };
+  return {
+    summary,
+    keepID,
+    stats: region.stats,
+    capped: region.capped,
+    vccRev: COMPILER_REV,
+    vccConfigHash: configHash(config),
+  };
 }

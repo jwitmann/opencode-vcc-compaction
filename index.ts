@@ -1,7 +1,7 @@
 import { Plugin, Rpc } from "@opencode/plugin/effect"
 import type { SessionInbox } from "@opencode/schema/session-inbox"
 import { Effect, Schema } from "effect"
-import { buildConfig, compileCompaction } from "./adapter.mjs"
+import { buildConfig, compileCompaction, isValidCompactionOutcome } from "./adapter.mjs"
 import { VCC_REPLY_EVENT, VCC_RPC_ID, buildReplyPayload } from "./events.mjs"
 import {
   COMPILER_REV,
@@ -33,8 +33,11 @@ import {
 // The compaction hook adapts the request messages through adapter.mjs (pure
 // offline mapping + the VCC reference compiler) and sets event.result so the
 // host takes its fromHook short-circuit: no model call, tail rebuilt from
-// metadata.keepID. When the adapter abstains (no message id at/after the
-// keep cut), result stays unset and the host falls back to model compaction.
+// metadata.keepID. The metadata also stamps the engine rev + config hash
+// beside keepID, and outcomes failing validation are never installed
+// (abstain to host fallback, same as the id-less path — no message id
+// at/after the keep cut, or a failed validation, leaves result unset and
+// the host falls back to model compaction).
 // Alongside, context + compaction hooks snapshot cleaned raw messages
 // (snapshot.mjs: append-mode across compactions, retained newest-wins —
 // `snapshotMaxMessages` 50 / `snapshotFullPayloadMessages` 20, tunable
@@ -362,14 +365,32 @@ export default Plugin.define({
                       )
                       return
                     }
-                    if (outcome.stats.keptErrorWhole > 0) {
+                    // Validate-before-install: never install an invalid
+                    // summary. Deterministic output cannot self-heal on
+                    // retry, so this abstains straight to host fallback.
+                    if (!isValidCompactionOutcome(outcome)) {
                       console.warn(
-                        `[opencode-vcc-compaction] fail-open: kept ${outcome.stats.keptErrorWhole} error-diagnosis row(s) whole past the cap; successes were cut first`,
+                        "[opencode-vcc-compaction] compiled outcome failed validation (blank summary or unusable keepID); leaving result unset for host fallback",
+                      )
+                      return
+                    }
+                    // keptErrorWhole counts error rows refused by the cap
+                    // passes; a stats-less foreign shape must not throw here.
+                    const keptErrorWhole = typeof outcome.stats === "object" && outcome.stats !== null
+                      ? (outcome.stats as { keptErrorWhole?: unknown }).keptErrorWhole
+                      : undefined
+                    if (typeof keptErrorWhole === "number" && keptErrorWhole > 0) {
+                      console.warn(
+                        `[opencode-vcc-compaction] fail-open: kept ${keptErrorWhole} error-diagnosis row(s) whole past the cap; successes were cut first`,
                       )
                     }
                     event.result = {
                       summary: outcome.summary,
-                      metadata: { keepID: outcome.keepID },
+                      metadata: {
+                        keepID: outcome.keepID,
+                        vccRev: outcome.vccRev,
+                        vccConfigHash: outcome.vccConfigHash,
+                      },
                     }
                   })
                 },

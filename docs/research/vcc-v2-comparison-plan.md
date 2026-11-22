@@ -60,8 +60,13 @@ Fit (small, ours to take without changing philosophy):
 
 - Explicit summary metadata (à la `compactionModel`): stamp engine rev
   and config hash in `metadata` beside `keepID` — cheap diagnostics.
+  Done 2026-11-22: `metadata: { keepID, vccRev, vccConfigHash }`
+  (`configHash` FNV-1a over a RegExp/Infinity-normalized projection).
 - Invalid-summary discipline: validate headings, retry once, never
   install invalid, log reason without transcripts (their log hygiene).
+  Done 2026-11-22, translated: `isValidCompactionOutcome` (non-blank
+  summary + non-empty keepID) gates install; no retry — deterministic
+  output cannot self-heal — invalid abstains straight to host fallback.
 - Status-without-context (à la esuyo toast): keep `/vcc-status` read
   paths RPC-quiet — already aligned, hold the line.
 - Checkpoint-degradation audit (à la live-compact `spine-checkpoint`):
@@ -127,9 +132,9 @@ Park (needs owner decision / new surface — do not expand scope here):
 
 ## Standing list (the whole board)
 
-- Green-light anytime (pure engineering, no live run): metadata stamping,
-  validate-before-install. Done 2026-11-21: checkpoint-degradation audit
-  (offline vector + live verdict).
+- Green-light anytime: metadata stamping + validate-before-install
+  both shipped 2026-11-22 (see Fit notes above). Done 2026-11-21:
+  checkpoint-degradation audit (offline vector + live verdict).
 - Awaiting owner decision: none (all Park items resolved 2026-11-22).
 - Deferred: provider-abstain investigation (item 5, revisit on evidence).
 - Decided: asymmetric cut policy shipped (`733cad4`); prefix-cache cut

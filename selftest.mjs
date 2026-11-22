@@ -15,6 +15,8 @@ import {
   DEFAULT_PLUGIN_CONFIG,
   buildConfig,
   compileCompaction,
+  configHash,
+  isValidCompactionOutcome,
   pickKeepID,
   projectResultValue,
   toNode,
@@ -273,6 +275,43 @@ check(
   "noise patterns compile to RegExp",
   buildConfig({ noisePatterns: ["a+"] }).noisePatterns[0] instanceof RegExp,
   true,
+);
+check("config hash stable for equal configs", configHash(buildConfig({})) === configHash(buildConfig({})), true);
+check("config hash is 8 hex", /^[0-9a-f]{8}$/.test(configHash(buildConfig({}))), true);
+check(
+  "config hash moves with knobs",
+  new Set([
+    configHash(buildConfig({})),
+    configHash(buildConfig({ maxTokens: 100 })),
+    configHash(buildConfig({ noisePatterns: ["a+"] })),
+    configHash(buildConfig({ toolResultPointerTokens: 100 })),
+  ]).size,
+  4,
+);
+check(
+  "outcome stamps rev + config hash",
+  (() => {
+    const outcome = compileCompaction(MSGS, buildConfig({}));
+    return typeof outcome.vccRev === "string" && outcome.vccRev.length > 0
+      && outcome.vccConfigHash === configHash(buildConfig({}));
+  })(),
+  true,
+);
+check("valid outcome passes validation", isValidCompactionOutcome(compileCompaction(MSGS, buildConfig({}))), true);
+check(
+  "validator rejects invalid outcomes",
+  [
+    isValidCompactionOutcome(undefined),
+    isValidCompactionOutcome(null),
+    isValidCompactionOutcome("summary"),
+    isValidCompactionOutcome({}),
+    isValidCompactionOutcome({ summary: "", keepID: "k" }),
+    isValidCompactionOutcome({ summary: "   ", keepID: "k" }),
+    isValidCompactionOutcome({ summary: "s", keepID: "   " }),
+    isValidCompactionOutcome({ summary: "s" }),
+    isValidCompactionOutcome({ summary: "s", keepID: "" }),
+  ],
+  [false, false, false, false, false, false, false, false, false],
 );
 check(
   "checkpoint wrap is one details layer with identical inner",
