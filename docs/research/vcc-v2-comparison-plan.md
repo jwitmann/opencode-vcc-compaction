@@ -143,16 +143,10 @@ Park (needs owner decision / new surface — do not expand scope here):
 - Done (verdict in `docs/research/vcc-model-pilot.md`, rounds 2-5):
   VCC vs compaction-model comparison (plus co-install context).
 
-Skip (not ours):
-
-- Per-turn in-place shaving (live-compact's core — needs a reliably
-  firing per-turn seam; `experimental.idle` proved inert headless per
-  `docs/research/vcc-livecompact-pilot.md`, and our per-turn needs are
-  already served by the `context` hook).
-- Dedicated summarizer model, per-agent policies, charts/dashboards,
-  debounce/backoff (host owns the trigger), config-file watching (host
-  owns our options), TUI tree-walking folds (complementary package —
-  co-install instead).
+Skipped ideas (different architecture or product — not recorded as
+candidates): per-turn shaving, summarizer model, per-agent policies,
+charts, debounce, config-watching, TUI folds. Triage rationale was in
+git history; dropped 2026-11-22 as non-applicable.
 
 ## Verdict: checkpoint-degradation audit, live (2026-11-21)
 
