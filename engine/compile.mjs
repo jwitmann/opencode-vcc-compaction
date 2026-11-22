@@ -6,7 +6,8 @@
  * never re-defined.
  *
  * Faithful port with three documented deviations, plus one fork feature
- * (asymmetric tool-result cut) documented below:
+ * (asymmetric tool-result cut) and one semantics-preserving perf reorder,
+ * all documented below:
  * - Budget primitives (`sanitize`, `countTokens`, `truncateTokens`,
  *   `tailTokens`, `estimateEntryTokens`) are imported from `./tokenize.mjs`
  *   (module-private upstream; exported there so this sibling stage can
@@ -23,6 +24,13 @@
  *   unless `config.elideCheckpointInjectedBodies === true`; the OpenCode
  *   consumer leaves it off (REUSE.md rejects it — the preamble here is
  *   per-request transient, never persisted history).
+ * - Perf reorder (not upstream): the over-budget checks in
+ *   `excerptToolResult` and the pointer rule test the O(1) char-density
+ *   guard (`text.length > budget * 4`) before `countTokens`. Boolean OR
+ *   commutes over these pure predicates, so verdicts are identical —
+ *   small bodies just skip tokenization. Proven by the byte-identical
+ *   selftest goldens, the engine double-run vectors, and the bench
+ *   determinism assertion.
  * - Fork feature (not upstream): asymmetric tool-result cut. The `tool`
  *   branch reads `message.isError` (threaded by the OpenCode adapter from
  *   structured `result.type`, never text-derived), gives failures the
@@ -429,7 +437,11 @@ function elidedSourceMarker(label, seq, length) {
  * @returns the excerpt, or the full text when it already fits.
  */
 export function excerptToolResult(text, budget, ref) {
-  const overBudget = countTokens(text) > budget || text.length > budget * 4;
+  // Cheap length density check first: small bodies skip tokenization
+  // entirely (boolean OR commutes over these pure predicates, so the
+  // verdict is identical — this order just avoids counting tokens only
+  // to learn the text already fits).
+  const overBudget = text.length > budget * 4 || countTokens(text) > budget;
   if (budget <= 0 || !overBudget) return text;
   const half = Math.floor(budget / 2);
   const headLimit = Math.max(8, half);
@@ -707,7 +719,7 @@ export function compileNodes(nodes, config, budgets) {
         // Pointer rule, token count AND char density (mirrors the length
         // guard in excerptToolResult): a single-token blob (base64,
         // minified file) must not slip past a token-count threshold.
-        if (!isError && Number.isFinite(pointerAt) && (countTokens(body) > pointerAt || body.length > pointerAt * 4)) {
+        if (!isError && Number.isFinite(pointerAt) && (body.length > pointerAt * 4 || countTokens(body) > pointerAt)) {
           pushEntry(node.seq, `${header}[success output elided to pointer (result ${node.seq})]`, "result");
         } else {
           const budget = isError
