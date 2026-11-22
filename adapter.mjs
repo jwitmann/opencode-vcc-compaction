@@ -51,6 +51,16 @@ export const DEFAULT_PLUGIN_CONFIG = Object.freeze({
   userTextTokens: 16384,
   toolCallTokens: 128,
   toolResultExcerptTokens: 256,
+  // Asymmetric cut (docs/research/asymmetric-cut-design.md): failures keep
+  // a larger excerpt budget than successes (successes are one recall away,
+  // failures are not). Default equals the success budget, so stock behavior
+  // is byte-identical until the owner tunes it.
+  toolErrorExcerptTokens: 256,
+  // Pointer-only threshold for huge SUCCESS results (token count above
+  // which the entry collapses to a recall pointer). Off by default
+  // (Infinity) so stock behavior is byte-identical. Errors are never
+  // pointer-collapsed — see the fail-open rule in the design doc.
+  toolResultPointerTokens: Infinity,
   includeReasoning: false,
   hideTools: [],
   noisePatterns: [],
@@ -225,6 +235,22 @@ export function toNode(message, seq) {
     const first = message.content.find((part) => part !== null && part !== undefined && part.type === "tool-result");
     const node = { seq, message: { role: "tool", content: blocks } };
     if (first !== undefined && typeof first.id === "string" && first.id !== "") node.message.toolCallId = first.id;
+    // Asymmetric cut: flag failure results on the structured `result.type`
+    // signal (never the "[error] " text prefix — a user quoting an error
+    // must not be mistaken for one). Absent on success so success-node
+    // goldens stay byte-identical.
+    if (
+      message.content.some(
+        (part) =>
+          part !== null &&
+          part !== undefined &&
+          part.type === "tool-result" &&
+          part.result !== null &&
+          typeof part.result === "object" &&
+          part.result.type === "error",
+      )
+    )
+      node.message.isError = true;
     return node;
   }
   if (message.role === "user") {
@@ -279,6 +305,8 @@ export function buildConfig(options) {
     userTextTokens: num("userTextTokens"),
     toolCallTokens: num("toolCallTokens"),
     toolResultExcerptTokens: num("toolResultExcerptTokens"),
+    toolErrorExcerptTokens: num("toolErrorExcerptTokens"),
+    toolResultPointerTokens: num("toolResultPointerTokens"),
     includeReasoning: input.includeReasoning === true,
     hideTools,
     noisePatterns: compileNoisePatterns(noiseSources),

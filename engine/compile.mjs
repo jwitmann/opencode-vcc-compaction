@@ -5,7 +5,8 @@
  * The tokenizer half lives in `./tokenize.mjs` and is imported below,
  * never re-defined.
  *
- * Faithful port with three documented deviations:
+ * Faithful port with three documented deviations, plus one fork feature
+ * (asymmetric tool-result cut) documented below:
  * - Budget primitives (`sanitize`, `countTokens`, `truncateTokens`,
  *   `tailTokens`, `estimateEntryTokens`) are imported from `./tokenize.mjs`
  *   (module-private upstream; exported there so this sibling stage can
@@ -22,6 +23,13 @@
  *   unless `config.elideCheckpointInjectedBodies === true`; the OpenCode
  *   consumer leaves it off (REUSE.md rejects it — the preamble here is
  *   per-request transient, never persisted history).
+ * - Fork feature (not upstream): asymmetric tool-result cut. The `tool`
+ *   branch reads `message.isError` (threaded by the OpenCode adapter from
+ *   structured `result.type`, never text-derived), gives failures the
+ *   larger `toolErrorExcerptTokens` budget, collapses huge successes to a
+ *   recall pointer past `toolResultPointerTokens` (off by default), and
+ *   exempts error rows from both cap-elision passes (fail open, counted
+ *   in `stats.keptErrorWhole`). Defaults are byte-identical to upstream.
  *
  * Note on style: this file keeps upstream's semicolons verbatim for
  * line-for-line comparability with the MIT source. This coincides with
@@ -492,7 +500,11 @@ export function compileNodes(nodes, config, budgets) {
     textTokens: config.textTokens,
     userTextTokens: config.userTextTokens,
     toolCallTokens: config.toolCallTokens,
-    toolResultExcerptTokens: config.toolResultExcerptTokens
+    toolResultExcerptTokens: config.toolResultExcerptTokens,
+    // Split-budget fallbacks for direct engine callers (the adapter always
+    // resolves both): errors share the success budget, pointers stay off.
+    toolErrorExcerptTokens: config.toolErrorExcerptTokens ?? config.toolResultExcerptTokens,
+    toolResultPointerTokens: config.toolResultPointerTokens ?? Infinity
   };
   const keyFields = { ...DEFAULT_TOOL_KEY_FIELDS, ...(config.toolKeyFields ?? {}) };
   const patterns = config.noisePatterns ?? [];
@@ -519,7 +531,9 @@ export function compileNodes(nodes, config, budgets) {
     checkpoints: 0,
     tokens: 0,
     elidedToolRows: 0,
-    elidedRows: 0
+    elidedRows: 0,
+    // Fail-open count: error-diagnosis rows the cap passes refused to drop.
+    keptErrorWhole: 0
   };
   // Pre-pass over the ordered nodes: map each tool-call id to the seq of its
   // result node, so every call one-liner can carry a VCC-style result pointer
@@ -563,9 +577,11 @@ export function compileNodes(nodes, config, budgets) {
    * @param seq - durable seq the entry derives from.
    * @param text - rendered entry text.
    * @param kind - entry kind (see the kind list above).
+   * @param flags - optional extra entry fields (e.g. `{ error: true }` for
+   *   failure-diagnosis rows the cap passes must not drop).
    */
-  const pushEntry = (seq, text, kind) => {
-    entries.push({ seq, text, kind });
+  const pushEntry = (seq, text, kind, flags) => {
+    entries.push({ seq, text, kind, ...flags });
     stats.entries += 1;
     stats.tokens += estimateEntryTokens(text);
   };
@@ -679,11 +695,27 @@ export function compileNodes(nodes, config, budgets) {
       const body = projectToolResultText(message.content);
       if (body.length > 0) {
         const header = roleHeader("tool", node.seq);
-        // Excerpt to the configured budget: tool output is the bulk of a long
-        // session, and the full text stays one `recall(type:"result")` away via
-        // the call line's `-> result N` pointer.
-        const kept = excerptToolResult(body, effective.toolResultExcerptTokens, seqRef(node.seq));
-        pushEntry(node.seq, header + kept, "result");
+        // Asymmetric cut (docs/research/asymmetric-cut-design.md): failures
+        // keep the larger error budget and are never pointer-collapsed —
+        // successes are one `recall` away, failure diagnostics are not.
+        // Excerpt to the configured budget otherwise: tool output is the
+        // bulk of a long session, and the full text stays one
+        // `recall(type:"result")` away via the call line's `-> result N`
+        // pointer.
+        const isError = message.isError === true;
+        const pointerAt = effective.toolResultPointerTokens ?? Infinity;
+        // Pointer rule, token count AND char density (mirrors the length
+        // guard in excerptToolResult): a single-token blob (base64,
+        // minified file) must not slip past a token-count threshold.
+        if (!isError && Number.isFinite(pointerAt) && (countTokens(body) > pointerAt || body.length > pointerAt * 4)) {
+          pushEntry(node.seq, `${header}[success output elided to pointer (result ${node.seq})]`, "result");
+        } else {
+          const budget = isError
+            ? (effective.toolErrorExcerptTokens ?? effective.toolResultExcerptTokens)
+            : effective.toolResultExcerptTokens;
+          const kept = excerptToolResult(body, budget, seqRef(node.seq));
+          pushEntry(node.seq, header + kept, "result", isError ? { error: true } : undefined);
+        }
       }
       continue;
     }
@@ -786,7 +818,8 @@ const BUDGET_FLOORS = Object.freeze({
   textTokens: 32,
   userTextTokens: 32,
   toolCallTokens: 8,
-  toolResultExcerptTokens: 8
+  toolResultExcerptTokens: 8,
+  toolErrorExcerptTokens: 8
 });
 
 /** Entry kinds dropped by the first (low-value) elision pass. */
@@ -832,12 +865,18 @@ export function compileRegion(nodes, config) {
     textTokens: config.textTokens,
     userTextTokens: config.userTextTokens,
     toolCallTokens: config.toolCallTokens,
-    toolResultExcerptTokens: config.toolResultExcerptTokens
+    toolResultExcerptTokens: config.toolResultExcerptTokens,
+    toolErrorExcerptTokens: config.toolErrorExcerptTokens ?? config.toolResultExcerptTokens,
+    toolResultPointerTokens: config.toolResultPointerTokens ?? Infinity
   };
   let budgets = baseBudgets;
   let result = compileNodes(nodes, config, budgets);
   let attempts = 0;
   const maxAttempts = 4;
+  // Fail-open ledger: seqs of error rows a cap pass refused while still
+  // over cap. A Set (not a counter) so a row refused by both passes
+  // counts once; deleted if the hard truncate below cuts it as last resort.
+  const keptErrorSeqs = new Set();
   while (result.stats.tokens > config.maxTokens && attempts < maxAttempts) {
     budgets = scaleBudgets(budgets, config.maxTokens / result.stats.tokens * 0.95);
     result = compileNodes(nodes, config, budgets);
@@ -852,8 +891,17 @@ export function compileRegion(nodes, config) {
     // the dropped rows' span (approximate: surviving text may sit inside it).
     const toolRows = [];
     while (entries.length > 1 && result.stats.tokens > config.maxTokens) {
-      const index = entries.findIndex((entry, position) => position < entries.length - 1 && LOW_VALUE_KINDS.has(entry.kind));
-      if (index === -1) break;
+      // Fail open: error-diagnosis rows are never cap fodder — skip them
+      // even here. The position guard keeps the newest entry (recency
+      // invariant, same as before); error rows that block the pass while
+      // still over cap are counted once, at the break site only.
+      const index = entries.findIndex((entry, position) => position < entries.length - 1 && LOW_VALUE_KINDS.has(entry.kind) && entry.error !== true);
+      if (index === -1) {
+        for (const [position, entry] of entries.entries()) {
+          if (position < entries.length - 1 && LOW_VALUE_KINDS.has(entry.kind) && entry.error === true) keptErrorSeqs.add(entry.seq);
+        }
+        break;
+      }
       const dropped = entries.splice(index, 1)[0];
       result.stats.tokens -= estimateEntryTokens(dropped.text);
       toolRows.push(dropped);
@@ -867,7 +915,16 @@ export function compileRegion(nodes, config) {
     const elided = [];
     const droppedCheckpoints = [];
     while (entries.length > 1 && result.stats.tokens > config.maxTokens) {
-      const dropped = entries.shift();
+      // Fail open, oldest-first pass: error rows survive shifting too, and
+      // the position guard keeps the newest entry (recency invariant).
+      const oldest = entries.findIndex((entry, position) => position < entries.length - 1 && entry.error !== true);
+      if (oldest === -1) {
+        for (const [position, entry] of entries.entries()) {
+          if (position < entries.length - 1 && entry.error === true) keptErrorSeqs.add(entry.seq);
+        }
+        break;
+      }
+      const dropped = entries.splice(oldest, 1)[0];
       result.stats.tokens -= estimateEntryTokens(dropped.text);
       elided.push(dropped);
       if (dropped.kind === "checkpoint") droppedCheckpoints.push(dropped);
@@ -887,12 +944,20 @@ export function compileRegion(nodes, config) {
       entries.unshift({ seq: elided[0].seq, text: markerLines.join("\n"), kind: "note" });
       result.stats.tokens += estimateEntryTokens(entries[0].text);
     }
+    // Over cap with nothing left to drop (e.g. all remaining rows are
+    // fail-open errors) is still a cap event: footer + warn must fire.
+    if (result.stats.tokens > config.maxTokens) capped = true;
     if (result.stats.tokens > config.maxTokens && entries.length === 1) {
       capped = true;
       const hard = truncateTokens(entries[0].text, Math.max(8, config.maxTokens - 4), "total cap");
-      entries[0] = { seq: entries[0].seq, text: hard.text, kind: entries[0].kind };
+      entries[0] = { seq: entries[0].seq, text: hard.text, kind: entries[0].kind, ...(entries[0].error === true ? { error: true } : undefined) };
+      if (entries[0].error === true) keptErrorSeqs.delete(entries[0].seq);
       result.stats.tokens = estimateEntryTokens(entries[0].text);
     }
+    // Counted at the break sites above (rows refused as cap fodder while
+    // still over cap) — never here, so a hard-truncated error row is not
+    // misreported as kept whole.
+    result.stats.keptErrorWhole = keptErrorSeqs.size;
   }
   return { ...result, capped };
 }

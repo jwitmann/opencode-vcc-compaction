@@ -215,6 +215,8 @@ numbers fall back to defaults.
 | `userTextTokens` | 16384 | per-block user text budget |
 | `toolCallTokens` | 128 | tool one-liner budget |
 | `toolResultExcerptTokens` | 256 | tool-result excerpt budget |
+| `toolErrorExcerptTokens` | 256 | failure-result excerpt budget (larger: failures are not one recall away) |
+| `toolResultPointerTokens` | off | success results over this token count collapse to a recall pointer; errors never collapse (remove the key to disable after setting it — JSON has no Infinity) |
 | `includeReasoning` | false | keep reasoning blocks (else elided) |
 | `hideTools` | [] | tool names dropped entirely |
 | `noisePatterns` | [] | extra strip regex sources (strings) |

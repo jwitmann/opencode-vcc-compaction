@@ -1,11 +1,12 @@
 # Design (DRAFT): asymmetric cut policy for tool results
 
-**Status:** draft for owner review. No behavior change ships with this
-doc — the only code delta is parity-lock vectors pinning today's
-uniform cut (green before and after, until implementation deliberately
-flips them). Rationale and borrow source: DSH `dsh-live-compact`
-pointer rule (giant successes → pointers, failures keep diagnostics),
-translation sketch in `docs/research/vcc-v2-comparison-plan.md`.
+**Status: implemented** (commit implementing this doc flips the
+`errorParity`/`asymmetric` goldens in `selftest.mjs` from the uniform
+cut to the behavior below; rung-1 parity = full suite green at
+defaults plus no-diff replay discipline for live spans).
+Rationale and borrow source: DSH `dsh-live-compact` pointer rule
+(giant successes → pointers, failures keep diagnostics), translation
+sketch in `docs/research/vcc-v2-comparison-plan.md`.
 
 **Problem:** `engine/compile.mjs` gives every `role: "tool"` result the
 same `toolResultExcerptTokens` head/tail cut (`excerptToolResult`,
@@ -80,7 +81,9 @@ toNode({ role: "tool",
 //      content: [{ type: "text", text: "[error] boom" }],
 //      toolCallId: "t1", isError: true } }
 
-// compiler: split budgets
+// compiler: split budgets; pointer rule checks token count AND char
+// density (single-token blobs must not slip past); fail-open counts
+// refusals at the break sites (never the hard-truncated last resort).
 compileNodes([{ seq: 3, message: { role: "tool", isError: true,
     content: [{ type: "text", text: GIANT }] } }],
   buildConfig({ toolResultExcerptTokens: 8, toolErrorExcerptTokens: 1000 }))

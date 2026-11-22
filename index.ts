@@ -341,6 +341,11 @@ export default Plugin.define({
               )
               return
             }
+            if (outcome.stats.keptErrorWhole > 0) {
+              console.warn(
+                `[opencode-vcc-compaction] fail-open: kept ${outcome.stats.keptErrorWhole} error-diagnosis row(s) whole past the cap; successes were cut first`,
+              )
+            }
             event.result = {
               summary: outcome.summary,
               metadata: { keepID: outcome.keepID },

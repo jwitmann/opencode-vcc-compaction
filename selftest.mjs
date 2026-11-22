@@ -136,10 +136,19 @@ function runSuite() {
     { role: "tool", content: [{ type: "tool-result", id: "c9", name: "bash", result: { type: "text", value: "hi" } }] },
   ], buildConfig({})).summary.includes("(seq 2 -> result 3)");
   out.capFooter = compileCompaction(MSGS, buildConfig({ maxTokens: 30 })).summary.includes("cap enforced");
-  // Parity lock for the asymmetric-cut draft (docs/research/asymmetric-cut-design.md):
-  // today errors get the same uniform excerpt as successes and carry no flag.
-  // Implementation will flip these goldens deliberately (isError + split budgets).
+  // Asymmetric cut (docs/research/asymmetric-cut-design.md): errors carry
+  // the structured flag and the larger error budget; successes collapse to
+  // a pointer past the threshold; cap passes refuse error rows (fail open).
   const ERR_MSG = { id: "msg-e", role: "tool", content: [{ type: "tool-result", id: "t9", name: "bash", result: { type: "error", value: `boom: ${"x".repeat(500)}` } }] };
+  const OK_MSG = { id: "msg-o", role: "tool", content: [{ type: "tool-result", id: "t8", name: "bash", result: { type: "text", value: `ok: ${"y".repeat(500)}` } }] };
+  const MIXED = [
+    { id: "u1", role: "user", content: [{ type: "text", text: "run it" }] },
+    { id: "t8", role: "assistant", content: [{ type: "tool-call", id: "c8", name: "bash", input: "x" }] },
+    OK_MSG,
+    { id: "t9", role: "assistant", content: [{ type: "tool-call", id: "c9", name: "bash", input: "y" }] },
+    ERR_MSG,
+    { id: "k1", role: "user", content: [{ type: "text", text: "keep me" }] },
+  ];
   out.errorParity = {
     node: toNode(ERR_MSG, 6),
     excerpted: compileCompaction(
@@ -151,6 +160,21 @@ function runSuite() {
       ],
       buildConfig({ keepMessages: 1, toolResultExcerptTokens: 8 }),
     ).summary,
+  };
+  const split = compileCompaction(MIXED, buildConfig({ toolResultExcerptTokens: 8, toolErrorExcerptTokens: 1000 }));
+  const pointed = compileCompaction(MIXED, buildConfig({ toolResultPointerTokens: 1 }));
+  const squeezed = compileCompaction(MIXED, buildConfig({ maxTokens: 60 }));
+  out.asymmetric = {
+    errorFlag: out.errorParity.node.message.isError === true,
+    successUnflagged: toNode(OK_MSG, 3).message.isError === undefined,
+    errorWholeAtDefault: out.errorParity.excerpted.includes(`[error] boom: ${"x".repeat(500)}`),
+    splitErrorWhole: split.summary.includes(`[error] boom: ${"x".repeat(500)}`),
+    splitSuccessCut: split.summary.includes("elided from seq 3") && !split.summary.includes(`ok: ${"y".repeat(500)}`),
+    pointerSuccess: pointed.summary.includes("[success output elided to pointer (result 3)]"),
+    pointerSkipsError: pointed.summary.includes(`[error] boom: ${"x".repeat(500)}`),
+    failOpenCapped: squeezed.capped === true,
+    failOpenKept: squeezed.stats.keptErrorWhole === 1,
+    failOpenSurvives: squeezed.summary.includes("boom:"),
   };
   return JSON.stringify(out);
 }
@@ -190,6 +214,10 @@ const EXPECTED = JSON.stringify({
       userTextTokens: 16384,
       toolCallTokens: 128,
       toolResultExcerptTokens: 256,
+      // Infinity serializes as null under JSON.stringify (golden compares
+      // serialized); the live default is off-by-Infinity, not null.
+      toolErrorExcerptTokens: 256,
+      toolResultPointerTokens: null,
       includeReasoning: true,
       hideTools: ["x"],
       noisePatterns: "CHECK_REGEXP",
@@ -207,8 +235,20 @@ const EXPECTED = JSON.stringify({
   contiguousSeqs: true,
   capFooter: true,
   errorParity: {
-    node: { seq: 6, message: { role: "tool", content: [{ type: "text", text: `[error] boom: ${"x".repeat(500)}` }], toolCallId: "t9" } },
-    excerpted: "<details>\n<summary>compaction checkpoint: 4 messages -> 4 entries</summary>\n\nThis is an automatically generated checkpoint condensing an earlier span of the conversation to free up context. Treat the captured context as established background and build on it without restating it. Continue the task directly from the messages that follow, without acknowledging this checkpoint.\n\n<compacted-checkpoint>\n\nRECALL: append-only log — nothing is lost. `recall` restores original content: type \"seq\", id \"3-7\"; \"result\", id \"3\"; \"checkpoint\", id \"1\" (`[checkpoint N]` = dropped). `search` finds by keyword.\n\n[opencode-vcc-compaction vcc-compiler-debug-2: 4 messages -> 4 entries]\n\n[user]\nrun it\n\n[assistant]\n* bash (seq 2)\n\n[tool]\n[error] boom: xxxxxxxxxxxxxxxxxx...(truncated from seq 3)\n...(elided from seq 3)\n...(elided before seq 3)xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n\n[user]\nkeep me\n\n</compacted-checkpoint>\n\n</details>",
+    node: { seq: 6, message: { role: "tool", content: [{ type: "text", text: `[error] boom: ${"x".repeat(500)}` }], toolCallId: "t9", isError: true } },
+    excerpted: "<details>\n<summary>compaction checkpoint: 4 messages -> 4 entries</summary>\n\nThis is an automatically generated checkpoint condensing an earlier span of the conversation to free up context. Treat the captured context as established background and build on it without restating it. Continue the task directly from the messages that follow, without acknowledging this checkpoint.\n\n<compacted-checkpoint>\n\nRECALL: append-only log — nothing is lost. `recall` restores original content: type \"seq\", id \"3-7\"; \"result\", id \"3\"; \"checkpoint\", id \"1\" (`[checkpoint N]` = dropped). `search` finds by keyword.\n\n[opencode-vcc-compaction vcc-compiler-debug-2: 4 messages -> 4 entries]\n\n[user]\nrun it\n\n[assistant]\n* bash (seq 2)\n\n[tool]\n[error] boom: " + "x".repeat(500) + "\n\n[user]\nkeep me\n\n</compacted-checkpoint>\n\n</details>",
+  },
+  asymmetric: {
+    errorFlag: true,
+    successUnflagged: true,
+    errorWholeAtDefault: true,
+    splitErrorWhole: true,
+    splitSuccessCut: true,
+    pointerSuccess: true,
+    pointerSkipsError: true,
+    failOpenCapped: true,
+    failOpenKept: true,
+    failOpenSurvives: true,
   },
 });
 
