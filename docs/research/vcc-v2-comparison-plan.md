@@ -77,7 +77,8 @@ Park (needs owner decision / new surface — do not expand scope here):
   [on|off]` — persisted per-session, feedback via ignored message): would
   need a new command or storage flag.
    Update (2026-11-22): approved — single command with `on|off`
-   (no separate commands; bare invocation reports state). In progress.
+   (no separate commands; bare invocation reports state). Shipped
+   (`a6b9dbc`, `/vcc-compaction` + `vcc-switch/` key + status line).
 - Provider-specific abstain (their `claude-code` carve-out — note:
   `claude-code` is a provider *inside* OpenCode, typically the
   subscription/plan route via the `@openchamber/opencode-claude` bridge,
@@ -100,7 +101,8 @@ Park (needs owner decision / new surface — do not expand scope here):
   flag + warn, never abstain the whole compaction to save one stack
   trace). Rationale: successes are replaceable (snapshot holds the
   original one `recall` away), failures are not. Would change compiler
-  behavior. Parked.
+  behavior. Shipped (`733cad4`; spec in
+   `docs/research/asymmetric-cut-design.md`).
 - Prefix-cache-aware cut floor (live-compact newest-card floor): never
   cut left of the newest card, never rewrite cached prefix. Optimizes
   cache survival, not just tokens; needs host cache-behavior grounding.
@@ -126,14 +128,15 @@ Park (needs owner decision / new surface — do not expand scope here):
 ## Standing list (the whole board)
 
 - Green-light anytime (pure engineering, no live run): metadata stamping,
-  validate-before-install, checkpoint-degradation audit.
+  validate-before-install. Done 2026-11-21: checkpoint-degradation audit
+  (offline vector + live verdict).
 - Awaiting owner decision: none (all Park items resolved 2026-11-22).
-- In progress: per-session on/off switch (item 4).
 - Deferred: provider-abstain investigation (item 5, revisit on evidence).
-- Decided (2026-11-22): asymmetric cut policy shipped (`733cad4`);
-  prefix-cache cut floor investigated, no change (see Park note above).
-- Awaiting live-run approval: VCC vs compaction-model comparison
-  (plus cgp/esuyo/fold co-install checks).
+- Decided: asymmetric cut policy shipped (`733cad4`); prefix-cache cut
+  floor investigated, no change (2026-11-22); per-session on/off switch
+  shipped (`a6b9dbc`).
+- Done (verdict in `docs/research/vcc-model-pilot.md`, rounds 2-5):
+  VCC vs compaction-model comparison (plus co-install context).
 
 Skip (not ours):
 

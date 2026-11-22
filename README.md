@@ -337,7 +337,7 @@ and control bytes are stripped deterministically before counting.
 - `index.ts` — thin Effect wiring only (`Plugin.define` + `Effect.fn` +
   `session.hook` + `command.transform`). No logic beyond config →
   `compileCompaction` → assign, growth-guarded snapshot remember, RPC
-  reply emit with prompt fallback, and the three `/vcc-*` command
+  reply emit with prompt fallback, and the four `/vcc-*` command
   registrations.
 - `adapter.mjs` — pure mapping + compile (unit-tested, no host). See its
   header for the vocabulary mapping (tool args, tool-result projection,
@@ -377,8 +377,8 @@ from the scratch project, never a real one.
 
 ## Status and limits
 
-- Ships the hook + three server slash commands
-  (`/vcc-recall`, `/vcc-search`, `/vcc-status`) plus the `./tui`
+- Ships the hook + four server slash commands
+  (`/vcc-recall`, `/vcc-search`, `/vcc-status`, `/vcc-compaction`) plus the `./tui`
   companion that renders their replies quietly. `(seq N)`
   pointers are 1-based ordinals over the compiled messages (skipped
   messages consume no seq); recall/search resolve them against the
