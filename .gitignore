@@ -24,3 +24,8 @@ examples/vault-check.txt
 examples-model/*.md
 examples-model/needle-dir-alpha/
 examples-model/vault-check.txt
+/.vcc-brain-shared/references/
+
+# Brain private partition (also in global Git ignore; belt and braces)
+/.vcc-brain/
+/.operator/
