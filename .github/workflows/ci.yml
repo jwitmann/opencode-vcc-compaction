@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   validate:
-    name: Typecheck, test, evidence, sync, lint
+    name: Typecheck, test, lint
     runs-on: ubuntu-latest
     permissions:
       contents: read
