@@ -7,6 +7,27 @@ Single source: the tag-triggered workflow publishes each version's
 section as the GitHub release notes, so this file and the release
 page never diverge.
 
+## [v0.5.0] - 2026-11-24
+
+### Features
+
+- collapse TUI checkpoint row via one-line summary + native window ([`0f00bfa`](https://github.com/jwitmann/opencode-vcc-compaction/commit/0f00bfa538471e3d4ce9d9b4ac13fb56b1d12218))
+
+### Fixes
+
+- absolute plugin path in examples harness so shared server loads it ([`8a99012`](https://github.com/jwitmann/opencode-vcc-compaction/commit/8a99012c14811ceb7a3b04f594abcf69cae68293))
+
+### Documentation
+
+- research TUI collapse options, native.messages window is the seam ([`f9089e0`](https://github.com/jwitmann/opencode-vcc-compaction/commit/f9089e01a7db8b96966ce340009ab1d7472cedde))
+- live verdict for collapsed checkpoint emit (manual compact, chained verbatim) ([`222691a`](https://github.com/jwitmann/opencode-vcc-compaction/commit/222691a2fa9e21598e258b54e6702faac25a6155))
+- sync README with collapsed-checkpoint emit (summary label vs checkpoint payload) ([`e4755eb`](https://github.com/jwitmann/opencode-vcc-compaction/commit/e4755eb4c56b9d54c6b289e503f9b40f6ee27529))
+
+### Other
+
+- correct validation job name ([`3a169e6`](https://github.com/jwitmann/opencode-vcc-compaction/commit/3a169e6b4b1754d9cc7d0bbda6e6f8d6ba07dcb9))
+- ignore local Brain partitions ([`31bbc13`](https://github.com/jwitmann/opencode-vcc-compaction/commit/31bbc13e2151c6121b382400912ec88b87f5e85f))
+
 ## [v0.4.0] - 2026-11-22
 
 ### Features
