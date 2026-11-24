@@ -71,11 +71,11 @@ function bench(messages, config) {
     const out = compileCompaction(messages, config)
     const ms = performance.now() - start
     if (out === undefined) throw new Error("bench history abstained (no keepID)")
-    if (first === null) first = out.summary
-    else if (out.summary !== first) throw new Error("nondeterministic summary across runs")
+    if (first === null) first = out.checkpoint
+    else if (out.checkpoint !== first) throw new Error("nondeterministic checkpoint across runs")
     if (ms < best) best = ms
   }
-  return { ms: best, summary: first }
+  return { ms: best, checkpoint: first }
 }
 
 const config = buildConfig({})
@@ -83,9 +83,9 @@ const rows = []
 for (const size of SIZES) {
   const messages = buildHistory(size)
   const input = JSON.stringify(messages).length
-  const { ms, summary } = bench(messages, config)
+  const { ms, checkpoint } = bench(messages, config)
   const time = ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`
-  rows.push({ size, input, summary: summary.length, time })
+  rows.push({ size, input, checkpoint: checkpoint.length, time })
 }
 
 const cpu = (() => {
@@ -100,13 +100,13 @@ console.log(`(${cpu}, ${process.version}) with synthetic mixed histories (user t
 console.log(`assistant text + tool-call + tool-result, default config), best of ${RUNS} runs.`)
 console.log(`Input sizes are request-payload characters with ÷4 token estimates:`)
 console.log("")
-console.log("| History | Input | Summary | Time |")
+console.log("| History | Input | Checkpoint | Time |")
 console.log("| --- | --- | --- | --- |")
 for (const row of rows) {
   const size = row.size.toLocaleString("en-US")
   const chars = row.input >= 1000000 ? `~${(row.input / 1000000).toFixed(1)}M` : `~${Math.round(row.input / 1000)}k`
   const tokens = row.input >= 1000000 ? `~${(row.input / 4000000).toFixed(1)}M` : `~${Math.round(row.input / 4000)}k`
-  console.log(`| ${size} messages | ${chars} chars (${tokens} tokens) | ${row.summary.toLocaleString("en-US")} chars | ${row.time} |`)
+  console.log(`| ${size} messages | ${chars} chars (${tokens} tokens) | ${row.checkpoint.toLocaleString("en-US")} chars | ${row.time} |`)
 }
 console.log("")
 console.log("Determinism: every size recompiled byte-identical across all runs.")

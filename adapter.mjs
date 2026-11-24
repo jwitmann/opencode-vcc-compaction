@@ -30,12 +30,16 @@
  *   history at `message.id === keepID`). When no id exists at/after the
  *   cut, `compileCompaction` returns undefined and the hook abstains —
  *   the host falls back to model compaction. Never a broken summary.
- * - The emitted summary is wrapped in one HTML `<details>` layer
- *   (collapsed by default in renderers that fold it; harmless prose
- *   elsewhere). `toNode` strips exactly one wrapper layer from a prior
- *   checkpoint on re-entry, so repeated compactions never nest — the
- *   invariant is single-layer, and a shape mismatch keeps the text
- *   verbatim (fail-safe, never a dropped checkpoint).
+ * - The emitted `summary` is a one-line label (the TUI renders only the
+ *   summary, so the row collapses to one line instead of a multi-KB wall).
+ *   The full checkpoint travels in `native.messages` and replays instead of
+ *   the summary. `wrapCheckpointSummary` / `unwrapCheckpointSummary` remain
+ *   for checkpoints persisted by older versions — `toNode` strips one
+ *   wrapper layer on re-entry and reattaches the checkpoint source to a
+ *   replayed native window (plain user message carrying the compiler's own
+ *   `<compacted-checkpoint>` tags), so repeated compactions carry the prior
+ *   checkpoint verbatim instead of re-summarizing it — and a shape mismatch
+ *   keeps the text verbatim (fail-safe, never a dropped checkpoint).
  */
 import {
   COMPILER_REV,
@@ -167,10 +171,10 @@ function toBlock(part) {
 }
 
 /**
- * Wrap one compiled summary in a single HTML `<details>` layer so
- * renderers that fold it (DSH does) collapse the checkpoint instead of
- * flooding the transcript. Renderers without folding show the tags as
- * harmless prose; token cost is unchanged (display-only).
+ * Wrap one compiled checkpoint in a single HTML `<details>` layer (legacy
+ * shape, kept for checkpoints persisted by older versions — see
+ * `unwrapCheckpointSummary`). New outcomes emit the one-line label as the
+ * summary and the bare checkpoint in `native.messages` instead.
  * @param body - framed checkpoint text.
  * @param label - single-line summary label (must be non-empty: the
  *   unwrapper rejects empty/multiline labels, so the round-trip is exact
@@ -254,6 +258,22 @@ export function toNode(message, seq) {
     return node;
   }
   if (message.role === "user") {
+    // Replayed native window: the host returns our checkpoint as an
+    // ordinary user message (no `source`). Detect the compiler's own
+    // `<compacted-checkpoint>` tag pair and reattach the checkpoint source
+    // so the engine carries it verbatim ([system] entry, dropped last)
+    // instead of re-chunking it as ordinary user prose. Detection is on
+    // the machine tag pair, never on prose — and either way the full text
+    // is preserved, only the entry framing differs.
+    if (
+      blocks.length === 1 &&
+      blocks[0].type === "text" &&
+      typeof blocks[0].text === "string" &&
+      blocks[0].text.includes("<compacted-checkpoint>") &&
+      blocks[0].text.includes("</compacted-checkpoint>")
+    ) {
+      return { seq, message: { role: "user", content: blocks, source: { kind: "compact-checkpoint" } } };
+    }
     return { seq, message: { role: "user", content: blocks } };
   }
   return null;
@@ -353,22 +373,29 @@ export function configHash(config) {
  * The compiler is deterministic, so there is nothing a retry could fix —
  * an invalid outcome abstains straight to host fallback, exactly like
  * the id-less abstain path. Checks only what the host needs to take the
- * result: a non-blank summary and a non-empty keepID.
+ * result: a non-blank one-line summary, a non-blank checkpoint window,
+ * and a non-empty keepID.
  * @param outcome - `compileCompaction` result (or anything else on failure paths).
  * @returns true when the outcome is safe to install as `event.result`.
  */
 export function isValidCompactionOutcome(outcome) {
   if (outcome === null || outcome === undefined || typeof outcome !== "object") return false;
   if (typeof outcome.summary !== "string" || outcome.summary.trim().length === 0) return false;
+  if (typeof outcome.checkpoint !== "string" || outcome.checkpoint.trim().length === 0) return false;
   if (typeof outcome.keepID !== "string" || outcome.keepID.trim() === "") return false;
   return true;
 }
 
 /**
  * Compile one compaction request deterministically.
+ *
+ * The `summary` is a one-line label: the TUI renders only the summary, so
+ * the row collapses to one line. The full checkpoint (`checkpoint`) is the
+ * context payload — the hook installs it as the single-message
+ * `native.messages` window, which the host replays instead of the summary.
  * @param messages - request messages in order.
  * @param config - resolved config from `buildConfig`.
- * @returns `{ summary, keepID, stats, capped, vccRev, vccConfigHash }`,
+ * @returns `{ summary, checkpoint, keepID, stats, capped, vccRev, vccConfigHash }`,
  *   or undefined to abstain (no id at/after the cut — the hook must leave
  *   `result` unset).
  */
@@ -386,12 +413,13 @@ export function compileCompaction(messages, config = buildConfig({})) {
   const footerLine = region.capped === true
     ? [`[cap enforced at ${config.maxTokens} entry tokens]`]
     : undefined;
-  const body = frameCheckpoint(region.entries, headerLine, undefined, footerLine)
+  const checkpoint = frameCheckpoint(region.entries, headerLine, undefined, footerLine)
     .map((block) => block.text)
     .join("\n\n");
-  const summary = wrapCheckpointSummary(body, `compaction checkpoint: ${nodes.length} messages -> ${region.entries.length} entries`);
+  const summary = `compaction checkpoint: ${nodes.length} messages -> ${region.entries.length} entries`;
   return {
     summary,
+    checkpoint,
     keepID,
     stats: region.stats,
     capped: region.capped,

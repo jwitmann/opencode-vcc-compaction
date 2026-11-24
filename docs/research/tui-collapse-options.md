@@ -72,15 +72,18 @@ content accepts plain text parts, so
 decodes. The kept tail still arrives from post-compaction DB rows, so
 the window need only carry the summarized part.
 
-## Round-trip sketch (not yet implemented)
+## Round-trip sketch (implemented 2026-11-24)
 
-1. `compileCompaction` keeps producing the full checkpoint text.
-2. `event.result = { summary: "", metadata: { keepID, vccRev,
+1. `compileCompaction` produces the full checkpoint text plus a one-line
+   summary label (`compaction checkpoint: N messages -> M entries`).
+2. `event.result = { summary, metadata: { keepID, vccRev,
    vccConfigHash }, native: { messages: [checkpoint user message] } }`.
-3. Next hook call receives the replayed window as ordinary messages;
-   the adapter compiles them generically (no unwrap needed); old
-   `<details>`-wrapped checkpoints still unwrap via the existing
-   single-layer strip.
+3. Next hook call receives the replayed window as an ordinary user
+   message; the adapter detects the compiler's own
+   `<compacted-checkpoint>` tag pair and reattaches the checkpoint
+   source, so the engine carries it verbatim instead of
+   re-summarizing it. Old `<details>`-wrapped checkpoints still unwrap
+   via the existing single-layer strip.
 4. `metadata.keepID` stays set (harmless; `withRecentText` attaches
    `recent`, which the native path ignores).
 5. Model switch: window replays only for the producing model
@@ -97,3 +100,5 @@ the window need only carry the summarized part.
 - Decide blank summary (one header line) vs one-liner (header plus
   e.g. `compaction checkpoint: N messages -> M entries`); one-liner
   is friendlier in clients without compaction special-casing.
+- Decided 2026-11-24: one-liner. Empty-string summaries risk host-store
+  decode edge cases; the label keeps every client to a single row.

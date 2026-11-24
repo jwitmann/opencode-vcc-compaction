@@ -33,8 +33,11 @@ import {
 // The compaction hook adapts the request messages through adapter.mjs (pure
 // offline mapping + the VCC reference compiler) and sets event.result so the
 // host takes its fromHook short-circuit: no model call, tail rebuilt from
-// metadata.keepID. The metadata also stamps the engine rev + config hash
-// beside keepID, and outcomes failing validation are never installed
+// metadata.keepID. The result carries a one-line summary (the TUI renders
+// only the summary, so the row stays collapsed) plus the full checkpoint as
+// the single-message native window, which replays instead of the summary.
+// The metadata stamps the engine rev + config hash beside keepID, and
+// outcomes failing validation are never installed
 // (abstain to host fallback, same as the id-less path — no message id
 // at/after the keep cut, or a failed validation, leaves result unset and
 // the host falls back to model compaction).
@@ -370,7 +373,7 @@ export default Plugin.define({
                     // retry, so this abstains straight to host fallback.
                     if (!isValidCompactionOutcome(outcome)) {
                       console.warn(
-                        "[opencode-vcc-compaction] compiled outcome failed validation (blank summary or unusable keepID); leaving result unset for host fallback",
+                        "[opencode-vcc-compaction] compiled outcome failed validation (blank summary, blank checkpoint, or unusable keepID); leaving result unset for host fallback",
                       )
                       return
                     }
@@ -384,8 +387,18 @@ export default Plugin.define({
                         `[opencode-vcc-compaction] fail-open: kept ${keptErrorWhole} error-diagnosis row(s) whole past the cap; successes were cut first`,
                       )
                     }
+                    // The TUI renders only the summary, so the one-line label
+                    // keeps the row collapsed. The full checkpoint replays
+                    // instead of the summary on the next request (provider
+                    // replacement window); the kept tail still rebuilds from
+                    // metadata.keepID.
                     event.result = {
                       summary: outcome.summary,
+                      native: {
+                        messages: [
+                          { role: "user", content: [{ type: "text", text: outcome.checkpoint }] },
+                        ],
+                      },
                       metadata: {
                         keepID: outcome.keepID,
                         vccRev: outcome.vccRev,

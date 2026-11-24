@@ -130,7 +130,8 @@ function runSuite() {
   ];
   const full = compileCompaction(MSGS, buildConfig({}));
   out.fullKeepID = full.keepID;
-  out.fullPointers = [full.summary.includes('(seq 2 -> result 3)'), full.summary.includes("RECALL:"), full.summary.includes("[opencode-vcc-compaction")];
+  out.fullSummary = full.summary;
+  out.fullPointers = [full.checkpoint.includes('(seq 2 -> result 3)'), full.checkpoint.includes("RECALL:"), full.checkpoint.includes("[opencode-vcc-compaction")];
   out.fullStats = [full.stats.nodes, full.stats.entries > 0, full.capped];
   out.abstain = compileCompaction([{ role: "user", content: [{ type: "text", text: "no ids anywhere" }] }], buildConfig({}));
   out.defaultConfig = compileCompaction([{ id: "x", role: "user", content: [{ type: "text", text: "hi" }] }]).keepID;
@@ -139,8 +140,8 @@ function runSuite() {
     { role: "system", content: [{ type: "text", text: "skipped" }] },
     { id: "t9", role: "assistant", content: [{ type: "tool-call", id: "c9", name: "bash", input: "echo hi" }] },
     { role: "tool", content: [{ type: "tool-result", id: "c9", name: "bash", result: { type: "text", value: "hi" } }] },
-  ], buildConfig({})).summary.includes("(seq 2 -> result 3)");
-  out.capFooter = compileCompaction(MSGS, buildConfig({ maxTokens: 30 })).summary.includes("cap enforced");
+  ], buildConfig({})).checkpoint.includes("(seq 2 -> result 3)");
+  out.capFooter = compileCompaction(MSGS, buildConfig({ maxTokens: 30 })).checkpoint.includes("cap enforced");
   // Asymmetric cut (docs/research/asymmetric-cut-design.md): errors carry
   // the structured flag and the larger error budget; successes collapse to
   // a pointer past the threshold; cap passes refuse error rows (fail open).
@@ -164,7 +165,7 @@ function runSuite() {
         { id: "k1", role: "user", content: [{ type: "text", text: "keep me" }] },
       ],
       buildConfig({ keepMessages: 1, toolResultExcerptTokens: 8 }),
-    ).summary,
+    ).checkpoint,
   };
   const split = compileCompaction(MIXED, buildConfig({ toolResultExcerptTokens: 8, toolErrorExcerptTokens: 1000 }));
   const pointed = compileCompaction(MIXED, buildConfig({ toolResultPointerTokens: 1 }));
@@ -173,13 +174,13 @@ function runSuite() {
     errorFlag: out.errorParity.node.message.isError === true,
     successUnflagged: toNode(OK_MSG, 3).message.isError === undefined,
     errorWholeAtDefault: out.errorParity.excerpted.includes(`[error] boom: ${"x".repeat(500)}`),
-    splitErrorWhole: split.summary.includes(`[error] boom: ${"x".repeat(500)}`),
-    splitSuccessCut: split.summary.includes("elided from seq 3") && !split.summary.includes(`ok: ${"y".repeat(500)}`),
-    pointerSuccess: pointed.summary.includes("[success output elided to pointer (result 3)]"),
-    pointerSkipsError: pointed.summary.includes(`[error] boom: ${"x".repeat(500)}`),
+    splitErrorWhole: split.checkpoint.includes(`[error] boom: ${"x".repeat(500)}`),
+    splitSuccessCut: split.checkpoint.includes("elided from seq 3") && !split.checkpoint.includes(`ok: ${"y".repeat(500)}`),
+    pointerSuccess: pointed.checkpoint.includes("[success output elided to pointer (result 3)]"),
+    pointerSkipsError: pointed.checkpoint.includes(`[error] boom: ${"x".repeat(500)}`),
     failOpenCapped: squeezed.capped === true,
     failOpenKept: squeezed.stats.keptErrorWhole === 1,
-    failOpenSurvives: squeezed.summary.includes("boom:"),
+    failOpenSurvives: squeezed.checkpoint.includes("boom:"),
   };
   return JSON.stringify(out);
 }
@@ -233,6 +234,7 @@ const EXPECTED = JSON.stringify({
     { ...DEFAULT_PLUGIN_CONFIG, noisePatterns: [] },
   ],
   fullKeepID: "msg-1",
+  fullSummary: "compaction checkpoint: 5 messages -> 5 entries",
   fullPointers: [true, true, true],
   fullStats: [5, true, false],
   abstain: undefined,
@@ -241,7 +243,7 @@ const EXPECTED = JSON.stringify({
   capFooter: true,
   errorParity: {
     node: { seq: 6, message: { role: "tool", content: [{ type: "text", text: `[error] boom: ${"x".repeat(500)}` }], toolCallId: "t9", isError: true } },
-    excerpted: "<details>\n<summary>compaction checkpoint: 4 messages -> 4 entries</summary>\n\nThis is an automatically generated checkpoint condensing an earlier span of the conversation to free up context. Treat the captured context as established background and build on it without restating it. Continue the task directly from the messages that follow, without acknowledging this checkpoint.\n\n<compacted-checkpoint>\n\nRECALL: append-only log — nothing is lost. `recall` restores original content: type \"seq\", id \"3-7\"; \"result\", id \"3\"; \"checkpoint\", id \"1\" (`[checkpoint N]` = dropped). `search` finds by keyword.\n\n[opencode-vcc-compaction vcc-compiler-debug-2: 4 messages -> 4 entries]\n\n[user]\nrun it\n\n[assistant]\n* bash (seq 2)\n\n[tool]\n[error] boom: " + "x".repeat(500) + "\n\n[user]\nkeep me\n\n</compacted-checkpoint>\n\n</details>",
+    excerpted: "This is an automatically generated checkpoint condensing an earlier span of the conversation to free up context. Treat the captured context as established background and build on it without restating it. Continue the task directly from the messages that follow, without acknowledging this checkpoint.\n\n<compacted-checkpoint>\n\nRECALL: append-only log — nothing is lost. `recall` restores original content: type \"seq\", id \"3-7\"; \"result\", id \"3\"; \"checkpoint\", id \"1\" (`[checkpoint N]` = dropped). `search` finds by keyword.\n\n[opencode-vcc-compaction vcc-compiler-debug-2: 4 messages -> 4 entries]\n\n[user]\nrun it\n\n[assistant]\n* bash (seq 2)\n\n[tool]\n[error] boom: " + "x".repeat(500) + "\n\n[user]\nkeep me\n\n</compacted-checkpoint>",
   },
   asymmetric: {
     errorFlag: true,
@@ -305,13 +307,15 @@ check(
     isValidCompactionOutcome(null),
     isValidCompactionOutcome("summary"),
     isValidCompactionOutcome({}),
-    isValidCompactionOutcome({ summary: "", keepID: "k" }),
-    isValidCompactionOutcome({ summary: "   ", keepID: "k" }),
-    isValidCompactionOutcome({ summary: "s", keepID: "   " }),
-    isValidCompactionOutcome({ summary: "s" }),
+    isValidCompactionOutcome({ summary: "", keepID: "k", checkpoint: "c" }),
+    isValidCompactionOutcome({ summary: "   ", keepID: "k", checkpoint: "c" }),
+    isValidCompactionOutcome({ summary: "s", checkpoint: "c", keepID: "   " }),
+    isValidCompactionOutcome({ summary: "s", keepID: "k" }),
+    isValidCompactionOutcome({ summary: "s", checkpoint: "", keepID: "k" }),
+    isValidCompactionOutcome({ summary: "s", checkpoint: "   ", keepID: "k" }),
     isValidCompactionOutcome({ summary: "s", keepID: "" }),
   ],
-  [false, false, false, false, false, false, false, false, false],
+  [false, false, false, false, false, false, false, false, false, false, false],
 );
 check(
   "checkpoint wrap is one details layer with identical inner",
@@ -354,19 +358,35 @@ check(
   true,
 );
 check(
-  "compiled summary stays single-layer across compactions",
+  "new outcomes carry a one-line summary plus a details-free checkpoint",
   (() => {
-    const count = (text, token) => text.split(token).length - 1;
-    const first = compileCompaction(MSGS, buildConfig({})).summary;
-    const once = count(first, "<details>") === 1 && count(first, "</details>") === 1;
-    const pointers = first.includes("(seq 2 -> result 3)") && first.includes("RECALL:");
+    const out = compileCompaction(MSGS, buildConfig({}));
+    const singleLine = typeof out.summary === "string" && !out.summary.includes("\n");
+    const clean = !out.checkpoint.includes("<details>") && !out.checkpoint.includes("</details>");
+    const pointers = out.checkpoint.includes("(seq 2 -> result 3)") && out.checkpoint.includes("RECALL:");
     const second = compileCompaction([
-      { id: "c0", role: "assistant", content: [{ type: "compaction", text: first }] },
+      { id: "c0", role: "assistant", content: [{ type: "compaction", text: wrapCheckpointSummary(out.checkpoint, "label") }] },
       { id: "u9", role: "user", content: [{ type: "text", text: "follow-up" }] },
-    ], buildConfig({})).summary;
-    const stillOnce = count(second, "<details>") === 1 && count(second, "</details>") === 1;
-    const priorSurvived = second.includes("login");
-    return once && pointers && stillOnce && priorSurvived;
+    ], buildConfig({}));
+    const legacyRoundTrips = second.checkpoint.includes("login") && !second.checkpoint.includes("<details>");
+    return singleLine && clean && pointers && legacyRoundTrips;
+  })(),
+  true,
+);
+check(
+  "replayed native window reattaches the checkpoint source and survives verbatim",
+  (() => {
+    const first = compileCompaction(MSGS, buildConfig({}));
+    // Production replay shape: the host returns our window as a plain user
+    // message with no `source` — nothing like the assistant compaction part.
+    const replay = { id: "w0", role: "user", content: [{ type: "text", text: first.checkpoint }] };
+    const node = toNode(replay, 1);
+    const sourced = node !== null && node.message.source !== undefined && node.message.source.kind === "compact-checkpoint";
+    const second = compileCompaction(
+      [replay, { id: "u9", role: "user", content: [{ type: "text", text: "follow-up" }] }],
+      buildConfig({}),
+    );
+    return sourced === true && second.checkpoint.includes(first.checkpoint);
   })(),
   true,
 );
@@ -384,19 +404,19 @@ check(
       { id: "u1", role: "user", content: [{ type: "text", text: "go on" }] },
       { id: "u2", role: "assistant", content: [{ type: "text", text: "done" }] },
       { id: "u3", role: "user", content: [{ type: "text", text: "next" }] },
-    ], buildConfig({})).summary;
+    ], buildConfig({})).checkpoint;
     const second = compileCompaction([
       { id: "d0", role: "assistant", content: [{ type: "compaction", text: first }] },
       { id: "d1", role: "user", content: [{ type: "text", text: "more" }] },
       { id: "d2", role: "assistant", content: [{ type: "text", text: "ok" }] },
       { id: "d3", role: "user", content: [{ type: "text", text: "end" }] },
-    ], buildConfig({})).summary;
+    ], buildConfig({})).checkpoint;
     const native = compileCompaction([
       { id: "n0", role: "assistant", content: [{ type: "compaction", text: nativeRow }] },
       { id: "n1", role: "user", content: [{ type: "text", text: "go on" }] },
       { id: "n2", role: "assistant", content: [{ type: "text", text: "done" }] },
       { id: "n3", role: "user", content: [{ type: "text", text: "next" }] },
-    ], buildConfig({})).summary;
+    ], buildConfig({})).checkpoint;
     return first.includes(ours) && second.includes(ours) && native.includes(nativeRow);
   })(),
   true,
