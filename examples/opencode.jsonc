@@ -2,7 +2,12 @@
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
     {
-      "package": "..",
+      // Absolute path: the shared background server resolves a relative
+      // `package` against its own cwd, not this file's directory
+      // (observed: `..` -> `/home/package.json` ENOENT, plugin silently
+      // absent, host falls back to native compaction). Absolute keeps the
+      // scratch project loadable no matter where the server started.
+      "package": "/home/jerome/opencode-vcc-port",
       "options": { "maxTokens": 2000, "keepMessages": 4 }
     }
   ],
