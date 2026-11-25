@@ -7,6 +7,20 @@ Single source: the tag-triggered workflow publishes each version's
 section as the GitHub release notes, so this file and the release
 page never diverge.
 
+## [v0.6.0] - 2026-11-25
+
+### Features
+
+- cut history in /vcc-status and retention benchmark gate ([`1955ebd`](https://github.com/jwitmann/opencode-vcc-compaction/commit/1955ebd4074db249901e51c791adaac8061094d4))
+
+### Documentation
+
+- sync layout and research index with retention gate and collapse work ([`3def655`](https://github.com/jwitmann/opencode-vcc-compaction/commit/3def6555f5ad72264d496be5d8b63b5b0404e7c2))
+
+### Other
+
+- alphabetical import order for formatAge in selftest ([`d383541`](https://github.com/jwitmann/opencode-vcc-compaction/commit/d383541f89dd2082e1fcacc98c5bf1ae770ece0e))
+
 ## [v0.5.0] - 2026-11-24
 
 ### Features
