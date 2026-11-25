@@ -7,9 +7,13 @@ Durable project documents, organized by type (mirrors the
   per finding, deleted on resolve). Empty is the healthy steady state.
 - `research/` — verdicts grounding the release claims
   (`compaction-probe-verdict.md`, `vcc-plugin-live-verdict.md`,
-  `vcc-details-live-verdict.md`, `vcc-commands-live-verdict.md`),
+  `vcc-details-live-verdict.md`, `vcc-commands-live-verdict.md`,
+  `vcc-collapse-live-verdict.md`), pilots (`vcc-model-pilot.md`,
+  `vcc-livecompact-pilot.md`), collapse research
+  (`tui-collapse-options.md`), cut design (`asymmetric-cut-design.md`),
   build plans (`vcc-commands-plan.md`, `vcc-tui-companion-plan.md`,
-  `upstream-tui-run-session-draft.md`), and the 0.3.0 architecture review
+  `upstream-tui-run-session-draft.md`, `vcc-v2-comparison-plan.md`),
+  and the 0.3.0 architecture review
   (`architecture-review-0.3.0.md`). Verdicts name their evidence and base
   versions.
 

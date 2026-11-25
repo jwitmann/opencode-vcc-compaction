@@ -386,7 +386,8 @@ and control bytes are stripped deterministically before counting.
 - `examples/` — scratch project registering the repo root with a cheap
   `compaction.buffer` trigger for live runs (never run from a real project).
 - `scripts/` — release + changelog flow (tag-triggered publish) plus the
-  perf bench (`bench.mjs`, behind the Performance table).
+  perf bench (`bench.mjs`, behind the Performance table) and the
+  retention gate (`bench-retention.mjs`, behind Verify).
 - `docs/research/` — verdicts grounding the release claims.
 - `archive/` — frozen history, not maintained: the closed probe harness,
   the deciding spec, the reuse inventory, and the port plans. Do not extend.
