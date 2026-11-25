@@ -24,6 +24,7 @@ import {
   wrapCheckpointSummary,
 } from "./adapter.mjs";
 import {
+  CUT_HISTORY_MAX_ENTRIES,
   MAX_SNAPSHOT_WRITE_BYTES,
   SNAPSHOT_FULL_PAYLOAD_MESSAGES,
   SNAPSHOT_MAX_MESSAGES,
@@ -31,8 +32,12 @@ import {
   ageSnapshotPayloads,
   buildSnapshot,
   capSnapshotMessages,
+  classifyCutHistory,
   classifySnapshotStore,
   classifySwitchStore,
+  cutHistoryKey,
+  formatCutHistoryLines,
+  formatAge,
   formatRecallReply,
   formatSearchReply,
   formatStatusText,
@@ -43,6 +48,7 @@ import {
   parseSearchArgs,
   parseSwitchArgs,
   recallFromSnapshot,
+  recordCutHistory,
   retainSnapshotMessages,
   searchSnapshot,
   snapshotMessageToRecall,
@@ -640,6 +646,69 @@ check("switch store empty envelope defaults on", classifySwitchStore({}), { stat
 check("switch store garbage defaults on", classifySwitchStore({ enabled: "yes" }), { status: "ready", enabled: true });
 check("switch store off survives", classifySwitchStore({ version: 1, enabled: false }), { status: "ready", enabled: false });
 check("switch key lives under vcc-switch", switchKey("abc"), "vcc-switch/abc");
+check("cut history key lives under vcc-cuts", cutHistoryKey("abc"), "vcc-cuts/abc");
+check("cut history classifies failed", classifyCutHistory({ __vccReadFailed: true }), { status: "failed" });
+check("cut history classifies absent as empty-ready", classifyCutHistory(undefined), { status: "ready", cuts: [] });
+check("cut history classifies garbage as empty-ready", classifyCutHistory("junk"), { status: "ready", cuts: [] });
+const firstCut = { at: 1000, keepID: "m7", rev: "r", configHash: "h", inputMessages: 9, tokens: 640, entries: 18, capped: false, keptErrorWhole: 0 };
+check("cut history first cut folds from undefined", recordCutHistory(undefined, firstCut), {
+  history: { version: 1, cuts: [firstCut] },
+  changed: true,
+});
+check(
+  "cut history newest-first, oldest drops at bound",
+  (() => {
+    let folded = recordCutHistory(undefined, { ...firstCut, at: 1 }).history;
+    for (let at = 2; at <= CUT_HISTORY_MAX_ENTRIES + 1; at += 1) {
+      folded = recordCutHistory(folded, { ...firstCut, at }).history;
+    }
+    return { length: folded.cuts.length, newest: folded.cuts[0].at, oldest: folded.cuts[folded.cuts.length - 1].at };
+  })(),
+  { length: CUT_HISTORY_MAX_ENTRIES, newest: CUT_HISTORY_MAX_ENTRIES + 1, oldest: 2 },
+);
+check("cut history garbage previous folds from empty", recordCutHistory("junk", firstCut).history.cuts.length, 1);
+check("cut history garbage entry degrades, never throws", recordCutHistory(undefined, null).history.cuts[0].keepID, "(none)");
+check(
+  "cut history stats-less outcome still records keepID",
+  recordCutHistory(undefined, { at: 5, keepID: "m3" }).history.cuts[0].tokens,
+  -1,
+);
+check("cut lines report none when empty", formatCutHistoryLines([], 1000120), ["cuts: none recorded yet"]);
+check("cut lines never throw on garbage", formatCutHistoryLines("junk", NaN), ["cuts: none recorded yet"]);
+check("cut lines report read failure distinctly", formatCutHistoryLines(null, 0), ["cuts: read failed, try again in a moment"]);
+check("formatAge renders seconds and minutes", [formatAge(1000000, 1030000), formatAge(1000000, 1120000)], ["30s ago", "2m ago"]);
+check("formatAge never throws on garbage", formatAge("junk", NaN), "(unknown age)");
+check(
+  "cut lines render newest-first with age + ratio",
+  formatCutHistoryLines(
+    [
+      { at: 1000000, keepID: "m9", rev: "r", configHash: "h", inputMessages: 142, tokens: 640, entries: 18, capped: false, keptErrorWhole: 0 },
+      { at: 900000, keepID: "m5", rev: "r", configHash: "h", inputMessages: 60, tokens: 900, entries: 30, capped: true, keptErrorWhole: 2 },
+    ],
+    1000120,
+  ),
+  [
+    "cuts: 2 recorded",
+    "cut 0s ago: 142 msgs -> 18 entries (~640 tok), ok",
+    "cut 1m ago: 60 msgs -> 30 entries (~900 tok), capped, kept 2 error row(s) whole",
+  ],
+);
+check("status text omits cuts when not passed", formatStatusText(undefined, {}, "r", 0).includes("cuts"), false);
+check(
+  "status text renders recorded cuts",
+  formatStatusText(undefined, {}, "r", 1000120, true, [{ ...firstCut, at: 1000000 }]).includes("cuts: 1 recorded"),
+  true,
+);
+check(
+  "status text never throws on garbage cuts",
+  formatStatusText(undefined, {}, "r", 0, true, "junk").includes("cuts: none recorded yet"),
+  true,
+);
+check(
+  "status text reports cuts read failure",
+  formatStatusText(undefined, {}, "r", 0, true, null).includes("cuts: read failed"),
+  true,
+);
 check("switch store on round-trips", classifySwitchStore({ version: 1, enabled: true }), { status: "ready", enabled: true });
 check("switch store classifies failed", classifySwitchStore({ __vccReadFailed: true }), { status: "failed" });
 check(

@@ -413,6 +413,81 @@ export function parseSwitchArgs(text) {
 }
 
 /**
+ * Per-session cut history: one entry per installed compaction outcome.
+ * Stored under `CUT_HISTORY_KEY_PREFIX + sessionID` as
+ * `{ version, cuts: [...] }` (newest-first, bounded) — a separate key
+ * from the snapshot envelope (mirroring `SWITCH_KEY_PREFIX`), so history
+ * works before any snapshot exists and never changes the snapshot shape.
+ * Absent/empty/garbage reads mean "no recorded cuts" (fail-soft, like
+ * every other store reader).
+ */
+export const CUT_HISTORY_VERSION = 1;
+
+/** Storage key prefix; full key is `${CUT_HISTORY_KEY_PREFIX}${sessionID}`. */
+export const CUT_HISTORY_KEY_PREFIX = "vcc-cuts/";
+
+/** Max retained cut entries per session (newest-first; oldest drops). */
+export const CUT_HISTORY_MAX_ENTRIES = 10;
+
+/** Max cut entries rendered by `/vcc-status` (newest-first). */
+export const CUT_HISTORY_STATUS_ENTRIES = 3;
+
+/**
+ * Full storage key for a session's cut history.
+ * @param sessionID - session id.
+ * @returns key under `CUT_HISTORY_KEY_PREFIX` (never the snapshot key).
+ */
+export function cutHistoryKey(sessionID) {
+  return `${CUT_HISTORY_KEY_PREFIX}${sessionID}`;
+}
+
+/**
+ * Fold one installed compaction outcome into the stored cut history.
+ * Pure; malformed previous history folds from empty (fail-soft, like
+ * every other store fold). Entry fields degrade individually, so a
+ * stats-less foreign outcome still records its keepID and timestamp.
+ * @param previous - stored history value (or undefined on first cut).
+ * @param entry - `{ at, keepID, rev, configHash, inputMessages, tokens, entries, capped, keptErrorWhole }`.
+ * @returns `{ history, changed }`: changed is always true (every cut appends).
+ */
+export function recordCutHistory(previous, entry) {
+  const stored = previous !== null && typeof previous === "object" ? previous : undefined;
+  const kept = Array.isArray(stored?.cuts) ? stored.cuts.filter((cut) => cut !== null && typeof cut === "object") : [];
+  const source = entry !== null && typeof entry === "object" ? entry : {};
+  const numberOr = (value, fallback) => (typeof value === "number" && Number.isFinite(value) ? value : fallback);
+  const textOr = (value, fallback) => (typeof value === "string" && value !== "" ? value : fallback);
+  const cut = {
+    at: numberOr(source.at, 0),
+    keepID: textOr(source.keepID, "(none)"),
+    rev: textOr(source.rev, "?"),
+    configHash: textOr(source.configHash, "?"),
+    inputMessages: numberOr(source.inputMessages, -1),
+    tokens: numberOr(source.tokens, -1),
+    entries: numberOr(source.entries, -1),
+    capped: source.capped === true,
+    keptErrorWhole: numberOr(source.keptErrorWhole, 0),
+  };
+  const cuts = [cut, ...kept].slice(0, CUT_HISTORY_MAX_ENTRIES);
+  return { history: { version: CUT_HISTORY_VERSION, cuts }, changed: true };
+}
+
+/**
+ * Classify a cut-history storage read for command wiring.
+ * Never emits null: a failed read is `{ status: "failed" }`, and null at
+ * the format layer (`formatCutHistoryLines`) means failed — never pass
+ * raw storage straight to format.
+ * @param stored - raw `ctx.storage.get` value (or the read-failure sentinel).
+ * @returns `{ status: "failed" }`, or `{ status: "ready", cuts }`
+ * (newest-first array; empty when nothing is recorded yet).
+ */
+export function classifyCutHistory(stored) {
+  if (stored !== undefined && stored !== null && stored.__vccReadFailed === true) return { status: "failed" };
+  const envelope = stored !== null && typeof stored === "object" ? stored : undefined;
+  const cuts = Array.isArray(envelope?.cuts) ? envelope.cuts.filter((cut) => cut !== null && typeof cut === "object") : [];
+  return { status: "ready", cuts };
+}
+
+/**
  * Classify a switch-key storage read for command/hook wiring.
  * @param stored - raw `ctx.storage.get` value (or the read-failure sentinel).
  * @returns `{ status: "failed" }`, or `{ status: "ready", enabled }`
@@ -427,6 +502,50 @@ export function classifySwitchStore(stored) {
 }
 
 /**
+ * Render an age fragment (`Ns ago` / `Nm ago` / `(unknown age)`).
+ * Pure; shared by the snapshot and cut-history status lines so the two
+ * never drift. Callers decide what counts as a known timestamp.
+ * @param at - epoch ms (or anything foreign).
+ * @param now - current epoch ms (for age computation; caller supplies).
+ * @returns age text.
+ */
+export function formatAge(at, now) {
+  if (typeof at === "number" && Number.isFinite(at) && typeof now === "number" && Number.isFinite(now)) {
+    const seconds = Math.max(0, Math.floor((now - at) / 1000));
+    return seconds < 60 ? `${seconds}s ago` : `${Math.floor(seconds / 60)}m ago`;
+  }
+  return "(unknown age)";
+}
+
+/**
+ * Render cut-history lines for `/vcc-status` (newest-first, bounded to
+ * `CUT_HISTORY_STATUS_ENTRIES`). Pure; never throws on malformed entries
+ * (non-objects are filtered for hand-written shapes; fields degrade at
+ * record time).
+ * @param cuts - `classifyCutHistory` outcome's `cuts` (or anything foreign);
+ * null renders a read-failed line so a failed read never looks like
+ * "no cuts yet". Omitted keeps the historical shape byte-identical.
+ * @param now - current epoch ms (for age computation).
+ * @returns status lines: one header plus one line per rendered cut.
+ */
+export function formatCutHistoryLines(cuts, now) {
+  if (cuts === null) return ["cuts: read failed, try again in a moment"];
+  const list = Array.isArray(cuts) ? cuts.filter((cut) => cut !== null && typeof cut === "object") : [];
+  if (list.length === 0) return ["cuts: none recorded yet"];
+  const lines = [`cuts: ${list.length} recorded`];
+  for (const cut of list.slice(0, CUT_HISTORY_STATUS_ENTRIES)) {
+    const age = cut.at > 0 ? formatAge(cut.at, now) : "(unknown age)";
+    const from = typeof cut.inputMessages === "number" && cut.inputMessages >= 0 ? `${cut.inputMessages} msgs` : "? msgs";
+    const to = typeof cut.entries === "number" && cut.entries >= 0 ? `${cut.entries} entries` : "? entries";
+    const tokens = typeof cut.tokens === "number" && cut.tokens >= 0 ? ` (~${cut.tokens} tok)` : "";
+    const tail = cut.capped === true ? "capped" : "ok";
+    const kept = typeof cut.keptErrorWhole === "number" && cut.keptErrorWhole > 0 ? `, kept ${cut.keptErrorWhole} error row(s) whole` : "";
+    lines.push(`cut ${age}: ${from} -> ${to}${tokens}, ${tail}${kept}`);
+  }
+  return lines;
+}
+
+/**
  * Format a `/vcc-status` reply from the stored snapshot and live config.
  * Pure (caller supplies `now`); never throws on malformed snapshots.
  * @param stored - storage value (`{ version, messages, count, lastID, writtenAt }` or undefined).
@@ -435,9 +554,11 @@ export function classifySwitchStore(stored) {
  * @param now - current epoch ms (for age computation).
  * @param enabled - per-session switch state (`classifySwitchStore` outcome);
  * omitted keeps the historical shape byte-identical (no compaction line).
+ * @param cuts - cut history (`classifyCutHistory` outcome's `cuts`);
+ * omitted keeps the historical shape byte-identical (no cuts lines).
  * @returns status text.
  */
-export function formatStatusText(stored, config, rev, now, enabled) {
+export function formatStatusText(stored, config, rev, now, enabled, cuts) {
   const lines = [`**/vcc-status** — opencode-vcc-compaction (engine ${rev})`];
   const cfg = config !== null && typeof config === "object" ? config : {};
   const maxTokens = typeof cfg.maxTokens === "number" ? cfg.maxTokens : "?";
@@ -448,6 +569,7 @@ export function formatStatusText(stored, config, rev, now, enabled) {
   lines.push(`config: maxTokens=${maxTokens} keepMessages=${keepMessages} reasoning=${reasoning} hideTools=${hide} noisePatterns=${noise}`);
   if (enabled === true) lines.push("compaction: on (deterministic checkpoint at fire)");
   if (enabled === false) lines.push("compaction: off for this session (hook abstains; host native fallback)");
+  if (cuts !== undefined) lines.push(...formatCutHistoryLines(cuts, now));
   const snap = stored !== null && typeof stored === "object" ? stored : undefined;
   const messages = Array.isArray(snap?.messages) ? snap.messages : undefined;
   if (messages === undefined) {
@@ -457,11 +579,7 @@ export function formatStatusText(stored, config, rev, now, enabled) {
   const count = typeof snap.count === "number" ? snap.count : messages.length;
   const version = typeof snap.version === "number" ? snap.version : "?";
   const lastID = typeof snap.lastID === "string" && snap.lastID !== "" ? snap.lastID : "(none)";
-  let age = "(unknown age)";
-  if (typeof snap.writtenAt === "number" && Number.isFinite(snap.writtenAt) && typeof now === "number" && Number.isFinite(now)) {
-    const seconds = Math.max(0, Math.floor((now - snap.writtenAt) / 1000));
-    age = seconds < 60 ? `${seconds}s ago` : `${Math.floor(seconds / 60)}m ago`;
-  }
+  const age = formatAge(snap?.writtenAt, now);
   lines.push(`snapshot: v${version}, ${count} message(s), lastID=${lastID}, written ${age}`);
   return lines.join("\n");
 }

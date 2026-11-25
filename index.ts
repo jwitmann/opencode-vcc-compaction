@@ -5,13 +5,16 @@ import { buildConfig, compileCompaction, isValidCompactionOutcome } from "./adap
 import { VCC_REPLY_EVENT, VCC_RPC_ID, buildReplyPayload } from "./events.mjs"
 import {
   COMPILER_REV,
+  CUT_HISTORY_KEY_PREFIX,
   MAX_SNAPSHOT_WRITE_BYTES,
   SNAPSHOT_KEY_PREFIX,
   SWITCH_KEY_PREFIX,
   SWITCH_VERSION,
   WATCH_STATS_KEY_PREFIX,
+  classifyCutHistory,
   classifySnapshotStore,
   classifySwitchStore,
+  cutHistoryKey,
   formatRecallReply,
   formatSearchReply,
   formatStatusText,
@@ -19,6 +22,7 @@ import {
   parseSearchArgs,
   parseSwitchArgs,
   recallFromSnapshot,
+  recordCutHistory,
   resolveRecallSelections,
   retainSnapshotMessages,
   searchSnapshot,
@@ -354,58 +358,106 @@ export default Plugin.define({
                       )
                     })
                   }
-                  return Effect.sync(() => {
-                    let outcome
-                    try {
-                      outcome = compileCompaction(event.messages, config)
-                    } catch (error) {
-                      console.warn("[opencode-vcc-compaction] adapter failed; leaving result unset:", error)
-                      return
-                    }
-                    if (outcome === undefined) {
-                      console.warn(
-                        "[opencode-vcc-compaction] adapter abstained (no message id at/after the keep cut); leaving result unset for host fallback",
-                      )
-                      return
-                    }
-                    // Validate-before-install: never install an invalid
-                    // summary. Deterministic output cannot self-heal on
-                    // retry, so this abstains straight to host fallback.
-                    if (!isValidCompactionOutcome(outcome)) {
-                      console.warn(
-                        "[opencode-vcc-compaction] compiled outcome failed validation (blank summary, blank checkpoint, or unusable keepID); leaving result unset for host fallback",
-                      )
-                      return
-                    }
-                    // keptErrorWhole counts error rows refused by the cap
-                    // passes; a stats-less foreign shape must not throw here.
-                    const keptErrorWhole = typeof outcome.stats === "object" && outcome.stats !== null
-                      ? (outcome.stats as { keptErrorWhole?: unknown }).keptErrorWhole
-                      : undefined
-                    if (typeof keptErrorWhole === "number" && keptErrorWhole > 0) {
-                      console.warn(
-                        `[opencode-vcc-compaction] fail-open: kept ${keptErrorWhole} error-diagnosis row(s) whole past the cap; successes were cut first`,
-                      )
-                    }
-                    // The TUI renders only the summary, so the one-line label
-                    // keeps the row collapsed. The full checkpoint replays
-                    // instead of the summary on the next request (provider
-                    // replacement window); the kept tail still rebuilds from
-                    // metadata.keepID.
-                    event.result = {
-                      summary: outcome.summary,
-                      native: {
-                        messages: [
-                          { role: "user", content: [{ type: "text", text: outcome.checkpoint }] },
-                        ],
-                      },
-                      metadata: {
+                  return Effect.flatMap(
+                    Effect.sync(() => {
+                      let outcome
+                      try {
+                        outcome = compileCompaction(event.messages, config)
+                      } catch (error) {
+                        console.warn("[opencode-vcc-compaction] adapter failed; leaving result unset:", error)
+                        return null
+                      }
+                      if (outcome === undefined) {
+                        console.warn(
+                          "[opencode-vcc-compaction] adapter abstained (no message id at/after the keep cut); leaving result unset for host fallback",
+                        )
+                        return null
+                      }
+                      // Validate-before-install: never install an invalid
+                      // summary. Deterministic output cannot self-heal on
+                      // retry, so this abstains straight to host fallback.
+                      if (!isValidCompactionOutcome(outcome)) {
+                        console.warn(
+                          "[opencode-vcc-compaction] compiled outcome failed validation (blank summary, blank checkpoint, or unusable keepID); leaving result unset for host fallback",
+                        )
+                        return null
+                      }
+                      // keptErrorWhole counts error rows refused by the cap
+                      // passes; a stats-less foreign shape must not throw here.
+                      const stats = outcome.stats !== null && typeof outcome.stats === "object"
+                        ? (outcome.stats as Record<string, unknown>)
+                        : {}
+                      const keptErrorWhole = stats.keptErrorWhole
+                      if (typeof keptErrorWhole === "number" && keptErrorWhole > 0) {
+                        console.warn(
+                          `[opencode-vcc-compaction] fail-open: kept ${keptErrorWhole} error-diagnosis row(s) whole past the cap; successes were cut first`,
+                        )
+                      }
+                      // The TUI renders only the summary, so the one-line label
+                      // keeps the row collapsed. The full checkpoint replays
+                      // instead of the summary on the next request (provider
+                      // replacement window); the kept tail still rebuilds from
+                      // metadata.keepID.
+                      event.result = {
+                        summary: outcome.summary,
+                        native: {
+                          messages: [
+                            { role: "user", content: [{ type: "text", text: outcome.checkpoint }] },
+                          ],
+                        },
+                        metadata: {
+                          keepID: outcome.keepID,
+                          vccRev: outcome.vccRev,
+                          vccConfigHash: outcome.vccConfigHash,
+                        },
+                      }
+                      // Cut-history entry for `/vcc-status` (fields degrade
+                      // individually at record time, so a foreign outcome
+                      // shape still records its keepID and timestamp).
+                      // Read-then-write races like the watch-stats fold: two
+                      // concurrent compactions on one session can drop a cut;
+                      // bounded at 10 entries so the loss is one history line.
+                      return {
+                        at: Date.now(),
                         keepID: outcome.keepID,
-                        vccRev: outcome.vccRev,
-                        vccConfigHash: outcome.vccConfigHash,
-                      },
-                    }
-                  })
+                        rev: outcome.vccRev,
+                        configHash: outcome.vccConfigHash,
+                        inputMessages: Array.isArray((event as { messages: unknown }).messages)
+                          ? ((event as { messages: unknown[] }).messages.length)
+                          : -1,
+                        tokens: stats.tokens,
+                        entries: stats.entries,
+                        capped: outcome.capped === true,
+                        keptErrorWhole,
+                      }
+                    }),
+                    (entry) => {
+                      if (entry === null) return Effect.void
+                      // Cut history lives in its own kv key (never the
+                      // snapshot envelope, so readers never change shape);
+                      // every failure path warn-and-continues, exactly like
+                      // every other snapshot failure.
+                      const sessionID = (event as { sessionID: string }).sessionID
+                      return Effect.catch(
+                        Effect.flatMap(
+                          Effect.catch(
+                            ctx.storage.get(cutHistoryKey(sessionID)),
+                            (error) =>
+                              Effect.sync(() => {
+                                console.warn("[opencode-vcc-compaction] cut history previous read failed; folding from empty:", error)
+                                return undefined
+                              }),
+                          ),
+                          (stored) =>
+                            ctx.storage.set(cutHistoryKey(sessionID), recordCutHistory(stored, entry).history),
+                        ),
+                        (error) =>
+                          Effect.sync(() => {
+                            console.warn("[opencode-vcc-compaction] cut history write failed:", error)
+                          }),
+                      )
+                    },
+                  )
                 },
               ),
         ),
@@ -517,7 +569,7 @@ export default Plugin.define({
         })
         editor.add({
           name: "vcc-status",
-          description: "Show opencode-vcc-compaction engine revision, config, and snapshot freshness.",
+          description: "Show opencode-vcc-compaction engine revision, config, snapshot freshness, and cut history.",
           execute: (input) =>
             Effect.catchCause(
               Effect.flatMap(
@@ -531,16 +583,25 @@ export default Plugin.define({
                     readStored(input.sessionID, "vcc-compaction-switch", SWITCH_KEY_PREFIX),
                     (switchStored) => {
                       const switched = classifySwitchStore(switchStored as never)
-                      return reply(
-                        input,
-                        "/vcc-status",
-                        formatStatusText(
-                          classified.status === "ready" ? classified.stored as never : undefined,
-                          config as never,
-                          COMPILER_REV as string,
-                          Date.now(),
-                          switched.status === "ready" ? switched.enabled : undefined,
-                        ),
+                      return Effect.flatMap(
+                        readStored(input.sessionID, "vcc-status-cuts", CUT_HISTORY_KEY_PREFIX),
+                        (cutsStored) => {
+                          const cutHistory = classifyCutHistory(cutsStored as never)
+                          return reply(
+                            input,
+                            "/vcc-status",
+                            formatStatusText(
+                              classified.status === "ready" ? classified.stored as never : undefined,
+                              config as never,
+                              COMPILER_REV as string,
+                              Date.now(),
+                              switched.status === "ready" ? switched.enabled : undefined,
+                              // A failed cuts read renders its own line (never
+                              // "none recorded yet"); only an unread key omits.
+                              cutHistory.status === "ready" ? cutHistory.cuts : null,
+                            ),
+                          )
+                        },
                       )
                     },
                   )
