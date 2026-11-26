@@ -166,6 +166,13 @@ function toBlock(part) {
     case "effort":
       return null;
     default:
+      // Deny-list, not allow-list, by deliberate choice (assessed
+      // 2026-11-26 against dsh-live-compact's stale host-snapshot
+      // lesson): unknown future part types flow into the checkpoint as
+      // content instead of being silently dropped. Revisit only if
+      // OpenCode adds a reprojected-context part type whose text must
+      // not be snapshotted — an unknown part in a checkpoint is
+      // visible and debuggable, a dropped one is not.
       return { type: String(part.type) };
   }
 }
